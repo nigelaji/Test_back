@@ -5,7 +5,8 @@ from sqlalchemy import desc
 from tp_app import db
 from . import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
-from tp_app.common.security import encrypt_password
+from tp_app.common.security import check_password
+import time
 
 
 # 用户邮箱注册
@@ -46,8 +47,11 @@ def register():
             ret['msg'] = "验证码错误！"
             return jsonify(ret)
         # 验证结束，创建用户基本信息
-        User.create_user(password=encrypt_password(password1), email=email)
-        
+        user_default_name = 'TEST'+str(time.time())[0:10]
+        user = User(username=user_default_name, password=password1, emai=email)
+        db.session.add(user)
+        db.session.commit()
+        print("用户新增成功！")
         return redirect('/user/profile/')  # 注册成功，重定向到个人profile页面，可修改信息
         
 
@@ -62,7 +66,7 @@ def login():
     if request.method == 'POST':
         username = request.args.get('username')
         password = request.args.get('password')
-        user = User.query.filter_by(user_name=username,password=password).first()
+        user = User.query.filter_by(username=username,password=password).first()
         if user:
             login_user(user)
             return redirect(url_for('index.index'))
@@ -86,8 +90,8 @@ def logout():
     return jsonify(ret)
 
 
-# 用户信息，GET查 POST删改
-@user_blue.route('/user/profile', methods=['GET', 'POST'])
+# 用户信息，GET查 POST增 PUT改 DELETE删
+@user_blue.route('/user/profile', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @login_required
 def user_profile():
     ret = {
@@ -98,10 +102,12 @@ def user_profile():
     user_id = request.args.get('user_id')
     user = User.query.filter_by(user_id=user_id)[0]
     if request.method == 'GET':
-        
-        return
+        return jsonify(user=user)
     if request.method == 'POST':
-        
+        return
+    if request.method == 'PUT':
+        return
+    if request.method == 'DELETE':
         return
     return
 
@@ -115,7 +121,7 @@ def update_password():
     new_password1 = request.args.get('new_password1')
     new_password2 = request.args.get('new_password2')
     user = User.query.filter_by(id=user_id).first()
-    if user.password:
+    if check_password(old_password, user.password):
         pass
     
     return

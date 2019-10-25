@@ -2,17 +2,17 @@
 from tp_app import db, lm
 from flask_login import UserMixin
 from datetime import datetime
-from tp_app.common.security import encrypt_password
+from tp_app.common.security import encrypt_with_salt
 
 
 class User(UserMixin, db.Model):
 	"""用户表"""
 	__tablename__ = 'tp_user'
 	id = db.Column(db.Integer, primary_key=True)
-	user_name = db.Column(db.String(64), unique=True)
-	user_code = db.Column(db.String(64), unique=True)
+	username = db.Column(db.String(64), unique=True, comment='昵称')
+	user_code = db.Column(db.String(64), unique=True, comment='用户账号，可用于登录')
 	password = db.Column(db.String(64))
-	email = db.Column(db.String(64), unique=True, index=True)
+	email = db.Column(db.String(64), unique=True, index=True, comment='一般登录用')
 	phone = db.Column(db.String(64), unique=True)
 	create_time = db.Column(db.DateTime, default=datetime.now)
 	update_time = db.Column(db.DateTime, index=True)		# index=True，查询用户列表时，加快速度
@@ -23,18 +23,26 @@ class User(UserMixin, db.Model):
 	login_fail = db.Column(db.Integer, default=0, comment='记录登录失败次数，进行锁定账户')
 	remark = db.Column(db.String(500))
 
-	def __repr__(self):
-		return "<User (username='%r', status='%r')>" % (self.username, self.status)
-	
 	@staticmethod
 	def init_admin():		# 初始化管理员用户
 		user = User.query.filter_by(emai='838863149@qq.com').first()
 		if not user:
-			user = User(user_name='大佬', user_code='admin', password=encrypt_password('123456'), emai='838863149@qq.com')		# 为啥是警告？
+			user = User(username='大佬', user_code='admin', password='123456', emai='838863149@qq.com')		# 为啥是警告？
 			db.session.add(user)
 			db.session.commit()
-		return
+			print("初始化管理员账号！")
+	
+	@property
+	def password_hashlib(self):
+		raise AttributeError("密码是不可读的属性")
+	
+	@password_hashlib.setter
+	def password_hashlib(self, password):		# 插入密码时，自动加密
+		self.password = encrypt_with_salt(password)
 
+	def __repr__(self):
+		return "<User (username='%r', status='%r')>" % (self.username, self.status)
+	
 
 @lm.user_loader
 def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调用于从会话中存储的用户 ID 重新加载用户对象

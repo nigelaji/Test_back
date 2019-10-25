@@ -28,7 +28,7 @@ DROP TABLE IF EXISTS `tp_user`;
 
 CREATE TABLE `tp_user` (
   `id` INTEGER NULL AUTO_INCREMENT DEFAULT NULL,
-  `user_name` VARCHAR(20) NULL,
+  `username` VARCHAR(20) NULL,
   `user_code` VARCHAR(20) NULL,
   `password` VARCHAR(20) NOT NULL,
   `email` VARCHAR(20) NOT NULL COMMENT '邮箱不为空',
@@ -113,7 +113,7 @@ ALTER TABLE `tp_role_menu` ADD FOREIGN KEY (menu_id) REFERENCES `tp_menu` (`id`)
 
 -- INSERT INTO `tp_user_role` (`id`,`user_code`,`role_id`) VALUES
 -- ('','','');
--- INSERT INTO `tp_user` (`id`,`user_name`,`user_code`,`password`,`email`,`phone`,`create_time`,`update_time`,`status`,`locked`,`locked_date`,`unlocked_date`,`login_fail`) VALUES
+-- INSERT INTO `tp_user` (`id`,`username`,`user_code`,`password`,`email`,`phone`,`create_time`,`update_time`,`status`,`locked`,`locked_date`,`unlocked_date`,`login_fail`) VALUES
 -- ('','','','','','','','','','','','','');
 -- INSERT INTO `tp_role` (`id`,`role_name`,`introduction`) VALUES
 -- ('','','');

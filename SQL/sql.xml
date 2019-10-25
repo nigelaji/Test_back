@@ -58,7 +58,7 @@
 <row name="id" null="1" autoincrement="1">
 <datatype>INTEGER</datatype>
 <default>NULL</default></row>
-<row name="user_name" null="1" autoincrement="0">
+<row name="username" null="1" autoincrement="0">
 <datatype>VARCHAR(20)</datatype>
 </row>
 <row name="user_code" null="1" autoincrement="0">
