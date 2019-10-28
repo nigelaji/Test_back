@@ -69,7 +69,8 @@ def login():
         user = User.query.filter_by(username=username,password=password).first()
         if user:
             login_user(user)
-            return redirect(url_for('index.index'))
+            ret['data']['user'] = user
+            return jsonify(ret)
         else:
             ret['code'] = 500
             ret['msg'] = "登录失败，用户名密码验证错误！"
@@ -102,6 +103,7 @@ def user_profile():
     user_id = request.args.get('user_id')
     user = User.query.filter_by(user_id=user_id)[0]
     if request.method == 'GET':
+        
         return jsonify(user=user)
     if request.method == 'POST':
         return

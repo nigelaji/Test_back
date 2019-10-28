@@ -22,7 +22,8 @@ class User(UserMixin, db.Model):
 	unlocked_time = db.Column(db.DateTime)
 	login_fail = db.Column(db.Integer, default=0, comment='记录登录失败次数，进行锁定账户')
 	remark = db.Column(db.String(500))
-
+	roles = db.relationship('Role', sec)
+	
 	@staticmethod
 	def init_admin():		# 初始化管理员用户
 		user = User.query.filter_by(emai='838863149@qq.com').first()
@@ -49,9 +50,7 @@ def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调
 	return User.query.get(int(user_id)) 		# id默认传入的是字符串所以要int下
 
 
-user_role = db.Table(		# 用户角色关联表
-	'tp_user_role',
-	db.Column('id', db.Integer,primary_key=True),
+user_role = db.Table('tp_user_role',		# 用户角色关联表
 	db.Column('user_id', db.Integer, db.ForeignKey('User.id')),
 	db.Column('role_id', db.Integer, db.ForeignKey('Role.id'))
 )
@@ -77,9 +76,7 @@ class Role(db.Model):
 		return "<Role (role_name='%r')> " % self.role_name
 
 
-role_menu = db.Table(		# 角色菜单关联表
-	'tp_role_menu',
-	db.Column('id', db.Integer,primary_key=True),
+role_menu = db.Table('tp_role_menu',		# 角色菜单关联表
 	db.Column('role_id', db.Integer, db.ForeignKey('Role.id')),
 	db.Column('menu_id', db.Integer, db.ForeignKey('Menu.id')),
 )
