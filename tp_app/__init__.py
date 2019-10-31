@@ -12,7 +12,10 @@ db = SQLAlchemy()
 lm = LoginManager()
 db.init_app(app)
 lm.init_app(app)
-
+# 创建所有表
+with app.app_context():
+    db.create_all()     # 创建所有表
+# init_user_role_menu()
 # from . import views  # 这里面可以放公共视图
 
 # 注册蓝图

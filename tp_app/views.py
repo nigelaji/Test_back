@@ -4,7 +4,7 @@ from flask import make_response, jsonify, Response
 from tp_app import app
 
 
-@app.route('/index')
+@app.route('/')
 def index():
 	return 'hello world'
 
