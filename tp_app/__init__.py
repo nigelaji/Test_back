@@ -2,16 +2,27 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from flask_mail import Mail, Message
+from tp_app.config import ADMIN_MAIL_PASSWORD, ADMIN_MAIL_USERNAME
 
 app = Flask(__name__)
 # 数据库配置信息
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///my_blog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True         # 如果没有这行会有警告
 app.config["SECRET_KEY"] = "12345678"     # 如果没有，在生成表单的时候，会出现 CRSF 相关错误
+
+app.config['MAIL_SERVER'] = 'smtp.163.com'
+app.config['MAIL_PORT'] = 25
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = ADMIN_MAIL_USERNAME
+app.config['MAIL_PASSWORD'] = ADMIN_MAIL_PASSWORD
+
 db = SQLAlchemy()
 lm = LoginManager()
 db.init_app(app)
 lm.init_app(app)
+mail = Mail(app)
+
 # 创建所有表
 with app.app_context():
     db.create_all()     # 创建所有表

@@ -9,26 +9,34 @@ from tp_app.common.security import check_password
 import time
 
 
+def generate_token(key, expire=3600):   # 生成token
+    return
+
+
+def certify_token(key, token):  # 验证token
+    
+    return  True
+
+
 # 用户邮箱注册
 @user_blue.route('/register', methods=['POST'])
 def register():
     """
-    #判断是否含有email、password1、password2、verification_code 参数，若没有则返回参数不全
-    #判断是否有invitationCode参数，若有则从redis数据库中获取邀请人，若获取不到则返回错误，参考REST
-    #获取phone参数，加密密码并将用户信息存入mysql数据，若成功则返回用户id，失败返回错误
-    #根据用户id生成邀请码，并存入redis数据库中
-    #判断是否有idfa参数，若有则在后台线程在mysql中修改用户来源（非必须同步操作，放后台即可）
-    #生成token
-    :return:
+    # 判断是否含有email、password1、password2、verification_code 参数，若没有则返回参数不全
+    # 判断是否有invitationCode参数，若有则从redis数据库中获取邀请人，若获取不到则返回错误，参考REST
+    # 获取phone参数，加密密码并将用户信息存入mysql数据，若成功则返回用户id，失败返回错误
+    # 根据用户id生成邀请码，并存入redis数据库中
+    # 判断是否有idfa参数，若有则在后台线程在mysql中修改用户来源（非必须同步操作，放后台即可）
+    # 生成token
     """
     ret = {
         'code': 200,
         'msg': '',
         'data': {}
     }
-    if request.method == 'POST':
+    if request.method == 'POST':    # 邮箱注册
         # user = User.query.filter_by(email=request.POST.get('')).first()
-        email = request.args.get('email')
+        email = request.json.get('email')
         password1 = request.args.get('password1')
         password2 = request.args.get('password2')
         verification_code = request.args.get('verification_code')
@@ -48,7 +56,7 @@ def register():
             return jsonify(ret)
         # 验证结束，创建用户基本信息
         user_default_name = 'TEST'+str(time.time())[0:10]
-        user = User(username=user_default_name, password=password1, emai=email)
+        user = User(username=user_default_name, password=password1, email=email)
         db.session.add(user)
         db.session.commit()
         print("用户新增成功！")

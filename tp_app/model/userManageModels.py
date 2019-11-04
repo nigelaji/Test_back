@@ -18,21 +18,24 @@ class User(UserMixin, db.Model):
     update_time = db.Column(db.DateTime, index=True)		# index=True，查询用户列表时，加快速度
     status = db.Column(db.CHAR(1), default=1, comment='软删除,0已删除，1正常状态，默认值1')
     locked = db.Column(db.CHAR(1), default=1, comment='锁定用户，0被锁定，1解锁状态，默认值1')
-    locked_time = db.Column(db.DateTime)
-    unlocked_time = db.Column(db.DateTime)
+    locked_time = db.Column(db.DateTime, default=None)
+    unlocked_time = db.Column(db.DateTime, default=None)
     login_fail = db.Column(db.Integer, default=0, comment='记录登录失败次数，进行锁定账户')
     remark = db.Column(db.String(500))
     
-    def __init__(self, username, password, email):
+    def __init__(self, username, password, email, user_code=None, phone=None, remark=None):
         self.username = username
         self.password = password
         self.email = email
+        self.user_code = user_code
+        self.phone = phone
+        self.remark = remark
     
     @staticmethod
     def init_admin():		# 初始化管理员用户
         user = User.query.filter_by(emai='838863149@qq.com').first()
         if not user:
-            user = User(username='大佬', user_code='admin', password='123456', emai='838863149@qq.com')		# 为啥是警告？
+            user = User(username='大佬', password='123456', email='838863149@qq.com', user_code='admin')  # 如果没有__init__方法会有警告
             db.session.add(user)
             db.session.commit()
             print("初始化管理员账号！")
@@ -69,15 +72,16 @@ class Role(db.Model):
     users = db.relationship('User', secondary=user_role, backref=db.backref('role', lazy='dynamic'))
     # Role.users	User.role
     
-    def __init__(self, role_name):
+    def __init__(self, role_name, introduction=None):
         self.role_name = role_name
+        self.introduction = introduction
         
     @staticmethod
     def init_role():
         print('初始化角色表数据')
         role = Role.query.filter_by(role_name='超级管理员').first()
         if not role:
-            role = Role(role_name='超级管理员', introduction='最高权限角色')
+            role = Role(role_name='超级管理员', introduction='最高管理权限')
             db.session.add(role)
             db.session.commit()
     
@@ -97,15 +101,17 @@ class Menu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     menu_name = db.Column(db.String(20))
     menu_url = db.Column(db.String(100), comment='菜单路由')
-    icon_class = db.Column(db.String(50), comment='菜单图标')
+    icon_class = db.Column(db.String(50), comment='菜单图标', default=None)
     status = db.Column(db.CHAR(1),default=1, comment='软删除,0已删除，1正常状态，默认1')
     parent_id = db.Column(db.Integer, default=None, comment='父级菜单id')
     roles = db.relationship('Role', secondary=role_menu, backref=db.backref('menus', lazy='dynamic'))
     # Menu.roles    Role.menus
     
-    def __init__(self, menu_name, menu_url):
+    def __init__(self, menu_name, menu_url, icon_class=None, parent_id=None):
         self.menu_name = menu_name
         self.menu_url = menu_url
+        self.icon_class = icon_class
+        self.parent_id = parent_id
         
     def __repr__(self):
         return "<Menu (menu_name='%r')>" % self.menu_name
@@ -120,8 +126,10 @@ class UserLogEvent(db.Model):
     log_event = db.Column(db.String(30), comment='事件代码，例：login、logout、login_fail等')
     log_time = db.Column(db.DateTime, default=datetime.now())
     
-    def __init__(self):
-        pass
+    def __init__(self, user_id, client_ip, log_event):
+        self.user_id = user_id
+        self.client_ip = client_ip
+        self.log_event = log_event
     
     def __repr__(self):
         return "<UserLogInOut (user_id='%r', log_event='%r', log_time='%r')> " % (self.user_id, self.log_event, self.log_time)

@@ -6,3 +6,9 @@ SALT = 'n~1!i@6#d$8^a&y*e'		# 盐
 # Postgres_URI = "postgresql://username:password@hostname/database"
 SQLite_URI = "sqlite:///my_blog.db"
 
+ADMIN_MAIL_USERNAME = '838863149@qq.com'
+ADMIN_MAIL_PASSWORD = 'zmm521...'
+
+
+
+
