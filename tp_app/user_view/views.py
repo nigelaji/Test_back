@@ -1,34 +1,48 @@
 # coding:utf-8
-from flask import jsonify, request, redirect, session, url_for, abort
+from flask import jsonify, request, redirect, session, Response
 from flask_login import login_user, logout_user, current_user, login_required
 from sqlalchemy import desc
-from tp_app import db
+from tp_app import db, app
 from . import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
 from tp_app.common.security import check_password
 import time
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from functools import wraps
 
 
-def generate_token(key, expire=3600):   # 生成token
-    return
+def create_token(user):     # 生成时效token
+    s = Serializer('secret-key', expires_in=60)
+    token = s.dumps({'id': user.id}).decode("ascii")
+    return token
 
 
-def certify_token(key, token):  # 验证token
-    
-    return  True
+def verify_token(token):    # token验证
+    s = Serializer(app.config["SECRET_KEY"])    # 参数为私有秘钥，跟上面方法的秘钥保持一致
+    try:
+        data = s.loads(token)   # 转换为字典
+    except Exception:
+        return None
+    user = User.query.get(data["id"])       # 拿到转换后的数据，根据模型类去数据库查询用户信息
+    return user
+
+
+def require_token(func):    # 给需要登录的路由装上，就可以控制url必须登录才能访问了。
+    @wraps(func)
+    def check_token(*args, **kwargs):
+        if 'token' not in session:
+            return Response("没有token，访问被拒绝！")
+        else:
+            user = verify_token(session['token'])
+            if not user:
+                return redirect('/login', Response('token失效，请重新登录！'))
+        return func(*args, **kwargs)
+    return check_token
 
 
 # 用户邮箱注册
 @user_blue.route('/register', methods=['POST'])
 def register():
-    """
-    # 判断是否含有email、password1、password2、verification_code 参数，若没有则返回参数不全
-    # 判断是否有invitationCode参数，若有则从redis数据库中获取邀请人，若获取不到则返回错误，参考REST
-    # 获取phone参数，加密密码并将用户信息存入mysql数据，若成功则返回用户id，失败返回错误
-    # 根据用户id生成邀请码，并存入redis数据库中
-    # 判断是否有idfa参数，若有则在后台线程在mysql中修改用户来源（非必须同步操作，放后台即可）
-    # 生成token
-    """
     ret = {
         'code': 200,
         'msg': '',
@@ -61,7 +75,7 @@ def register():
         db.session.commit()
         print("用户新增成功！")
         return redirect('/user/profile/')  # 注册成功，重定向到个人profile页面，可修改信息
-        
+
 
 # 用户登录
 @user_blue.route('/login', methods=['POST'])
@@ -78,6 +92,8 @@ def login():
         if user:
             login_user(user)
             ret['data']['user'] = user
+            token = create_token(user)  # 创建token
+            session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
             return jsonify(ret)
         else:
             ret['code'] = 500
@@ -87,7 +103,7 @@ def login():
 
 # 登出，GET
 @user_blue.route('/logout')
-@login_required     # 意思就是必须登录的用户才能请求的路由
+@login_required     # 意思就是必须登录的用户才能请求的路由,系统自带的装饰器
 def logout():
     ret = {
         'code': 200,
@@ -99,32 +115,34 @@ def logout():
     return jsonify(ret)
 
 
-# 用户信息，GET查 POST增 PUT改 DELETE删
-@user_blue.route('/user/profile', methods=['GET', 'POST', 'PUT', 'DELETE'])
-@login_required
+# 用户信息，查
+@user_blue.route('/user/profile', methods=['POST'])
+@require_token
 def user_profile():
     ret = {
         'code': 200,
         'msg': '',
         'data': {}
     }
-    user_id = request.args.get('user_id')
+    user_id = request.json.get('user_id')
     user = User.query.filter_by(user_id=user_id)[0]
-    if request.method == 'GET':
-        
-        return jsonify(user=user)
     if request.method == 'POST':
-        return
-    if request.method == 'PUT':
-        return
-    if request.method == 'DELETE':
-        return
-    return
+        if not user:
+            ret['msg'] = '用户不存在！'
+            return jsonify(ret)
+        ret['data'] = {
+            'username': user.username,
+            'user_code': user.user_code,
+            'email': user.email,
+            'phone': user.phone,
+            'remark': user.remark,
+        }
+    return jsonify(ret)
 
 
 # 密码修改POST
 @user_blue.route('/user/password', methods=['POST'])
-@login_required
+@require_token
 def update_password():
     user_id = request.args.get('user_id')
     old_password = request.args.get('old_password')

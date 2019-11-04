@@ -1,18 +1,19 @@
 # coding;utf-8
 import hashlib
-from tp_app.config.config import SALT
+import functools
+from tp_app.config import SALT
 
 
 # md5加盐加密密码，md5不可反解密，只能通过字典库去一个个查md5库，那登录时如何验证密码？看主函数内示例
-def encrypt_with_salt(pwd, salt=SALT):
+def encrypt_with_salt(password, salt=SALT):
     m = hashlib.md5()
     m.update(salt.encode('utf-8'))
-    m.update(pwd.encode('utf-8'))
+    m.update(password.encode('utf-8'))
     return m.hexdigest()
 
 
-def check_password(pwd, pwd_hashed):        # 检查密码
-    return encrypt_with_salt(pwd) == pwd_hashed
+def check_password(password, pwd_hashed):        # 检查密码
+    return encrypt_with_salt(password) == pwd_hashed
 
 
 if __name__ == '__main__':

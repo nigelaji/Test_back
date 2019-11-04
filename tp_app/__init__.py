@@ -25,8 +25,9 @@ mail = Mail(app)
 
 # 创建所有表
 with app.app_context():
+    from tp_app.model.userManageModels import User, Role, Menu, user_role, role_menu, UserLogEvent, init_user_role_menu
     db.create_all()     # 创建所有表
-# init_user_role_menu()
+    init_user_role_menu()
 # from . import views  # 这里面可以放公共视图
 
 # 注册蓝图

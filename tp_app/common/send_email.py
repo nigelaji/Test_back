@@ -14,12 +14,8 @@ def send_email():
         'data': {}
     }
     if request.method == 'POST':
-        subject = request.json.get('subject')
-        body = request.json.get('body')
-        sender = request.json.get('sender')
-        recipients = request.json.get('recipients')
         try:
-            send_mail(subject, body, sender, recipients)
+            send_mail('点下面链接验证邮箱', '60s点此链接www.xxx.com账号生效', '838863149@qq.com', 'forsakenlimbo@gmail.com')
         except Exception as e:
             fail_details = traceback.format_exc()
             ret['msg'] = '邮件发送失败：%s' % fail_details
@@ -31,7 +27,7 @@ def send_async_email(app_, msg):     # 异步发送邮件
         mail.send(msg)
 
 
-def send_mail(subject='测试标题', body='测试正文', sender='838863149@qq.com', recipients=['forsakenlimbo@gmail.com']):
+def send_mail(subject='测试标题', body='测试正文', sender='838863149@qq.com', recipients=None):
     """Message参数
     subject：邮件主题标题
     recipients：收件人
@@ -48,6 +44,8 @@ def send_mail(subject='测试标题', body='测试正文', sender='838863149@qq.
     mail_options：略
     rcpt_options：略
     """
+    if recipients is None:
+        raise ValueError('收件人必填！')
     msg = Message(subject=subject, body=body)
     msg.sender = sender
     msg.recipients = recipients
