@@ -9,7 +9,7 @@ from tp_app.common.security import check_password
 import time
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from functools import wraps
-
+import json
 
 def create_token(user):     # 生成时效token
     s = Serializer('secret-key', expires_in=60)
@@ -31,11 +31,19 @@ def require_token(func):    # 给需要登录的路由装上，就可以控制ur
     @wraps(func)
     def check_token(*args, **kwargs):
         if 'token' not in session:
-            return Response("没有token，访问被拒绝！")
+            ret = {
+                'code': -1,
+                'msg': '没有token，访问被拒绝！',
+            }
+            return Response(json.dumps(ret), mimetype='application/json')
         else:
             user = verify_token(session['token'])
             if not user:
-                return redirect('/login', Response('token失效，请重新登录！'))
+                ret = {
+                    'code': -2,
+                    'msg': 'token失效，请重新登录！',
+                }
+                return redirect('/login', Response(json.dumps(ret), mimetype='application/json'))
         return func(*args, **kwargs)
     return check_token
 
@@ -86,18 +94,20 @@ def login():
         'data': {}
     }
     if request.method == 'POST':
-        username = request.args.get('username')
-        password = request.args.get('password')
-        user = User.query.filter_by(username=username,password=password).first()
+        print(request.values)
+        user_code = request.values.get('user_code') or 'admin'    # args只获取地址栏中参数
+        password = request.values.get('password') or '123456'
+        print(user_code, password)
+        user = User.query.filter_by(user_code=user_code).first()
+        if not check_password(password, user.password_hashlib):
+            ret['msg'] = '密码验证失败！'
+            return jsonify(ret)
         if user:
             login_user(user)
-            ret['data']['user'] = user
+            ret['data'] = user.serialize
             token = create_token(user)  # 创建token
             session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
-            return jsonify(ret)
-        else:
-            ret['code'] = 500
-            ret['msg'] = "登录失败，用户名密码验证错误！"
+            print(token)
             return jsonify(ret)
 
 
@@ -116,7 +126,7 @@ def logout():
 
 
 # 用户信息，查
-@user_blue.route('/user/profile', methods=['POST'])
+@user_blue.route('/profile', methods=['POST'])
 @require_token
 def user_profile():
     ret = {
@@ -130,18 +140,12 @@ def user_profile():
         if not user:
             ret['msg'] = '用户不存在！'
             return jsonify(ret)
-        ret['data'] = {
-            'username': user.username,
-            'user_code': user.user_code,
-            'email': user.email,
-            'phone': user.phone,
-            'remark': user.remark,
-        }
+        ret['data'] = user.serialize
     return jsonify(ret)
 
 
 # 密码修改POST
-@user_blue.route('/user/password', methods=['POST'])
+@user_blue.route('/password', methods=['POST'])
 @require_token
 def update_password():
     user_id = request.args.get('user_id')
@@ -153,3 +157,61 @@ def update_password():
         pass
     
     return
+
+
+# ---------------角色增删改查，角色关联菜单------------------
+@user_blue.route('/role/add', methods=['POST'])
+@require_token
+def add_role():
+    return
+
+
+@user_blue.route('/role/delete', methods=['POST'])
+@require_token
+def delete_role():
+    return
+
+
+@user_blue.route('/role/update', methods=['POST'])
+@require_token
+def update_role():
+    return
+
+
+@user_blue.route('/role/list', methods=['GET'])
+@require_token
+def role_list():
+    return
+
+
+@user_blue.route('/role/authorize_menu', methods=['POST'])  # 授权菜单
+@require_token
+def authorize_menu():
+    return
+
+
+# ----------------菜单增删改查----------------------
+@user_blue.route('/menu/add', methods=['POST'])     # 建菜单目录和菜单
+@require_token
+def add_menu():
+    #
+    return
+
+
+@user_blue.route('/menu/delete', methods=['POST'])
+@require_token
+def delete_menu():
+    return
+
+
+@user_blue.route('/menu/update', methods=['POST'])
+@require_token
+def update_menu():
+    return
+
+
+@user_blue.route('/menu/list', methods=['GET'])
+@require_token
+def menu_list():
+    return
+

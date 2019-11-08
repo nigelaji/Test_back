@@ -12,13 +12,19 @@ def dump_datetime(value):
     return [value.strftime("%Y-%m-%d"), value.strftime("%H:%M:%S")]
 
 
+user_role = db.Table('tp_user_role',		# 用户角色关联表
+                     db.Column('user_id', db.Integer, db.ForeignKey('tp_user.id')),     # 必须是真实表名.id，当然也可以是类名前提是__tablename__不写
+                     db.Column('role_id', db.Integer, db.ForeignKey('tp_role.id'))
+                     )
+
+
 class User(UserMixin, db.Model):
     """用户表"""
     __tablename__ = 'tp_user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, comment='昵称')
     user_code = db.Column(db.String(64), unique=True, comment='用户账号，可用于登录')
-    # password_hashlib = db.Column(db.String(64))
+    password_hashlib = db.Column(db.String(64))
     email = db.Column(db.String(64), unique=True, index=True, comment='一般登录用')
     phone = db.Column(db.String(64), unique=True)
     create_time = db.Column(db.DateTime, default=datetime.now)
@@ -29,18 +35,19 @@ class User(UserMixin, db.Model):
     unlocked_time = db.Column(db.DateTime, default=None)
     login_fail = db.Column(db.Integer, default=0, comment='记录登录失败次数，进行锁定账户')
     remark = db.Column(db.String(500))
+    roles = db.relationship('Role', secondary=user_role, backref=db.backref('users', lazy='dynamic'))
 
     @property
-    def password_hashlib(self):
+    def password(self):
         raise AttributeError("密码是不可读的属性")
 
-    @password_hashlib.setter
-    def password_hashlib(self, password):  # 插入密码时，自动加密
-        self.password = encrypt_with_salt(password)
+    @password.setter
+    def password(self, password):  # 插入明文密码时，自动加密
+        self.password_hashlib = encrypt_with_salt(password)
     
-    def __init__(self, username, password_hashlib, email, user_code=None, phone=None, remark=None):
+    def __init__(self, username, password, email, user_code=None, phone=None, remark=None):
         self.username = username
-        self.password_hashlib = password_hashlib
+        self.password = password
         self.email = email
         self.user_code = user_code
         self.phone = phone
@@ -48,13 +55,12 @@ class User(UserMixin, db.Model):
     
     @staticmethod
     def init_admin():		# 初始化管理员用户
-        print('初始化用户表')
         user = User.query.filter_by(email='838863149@qq.com').first()
         if not user:
-            user = User(username='大佬', password_hashlib='123456', email='838863149@qq.com', user_code='admin')  # 如果没有__init__方法会有警告
+            print('初始化用户表')
+            user = User(username='大佬', password='123456', email='838863149@qq.com', user_code='admin')  # 有__init__方法才能这样写
             db.session.add(user)
             db.session.commit()
-            print("初始化管理员账号！")
     
     def __repr__(self):
         return "<User (username='%r', status='%r')>" % (self.username, self.status)
@@ -74,7 +80,7 @@ class User(UserMixin, db.Model):
             'locked_time': dump_datetime(self.locked_time),
             'unlocked_time': dump_datetime(self.unlocked_time),
             'remark': self.remark,
-            'roles': self.roles.all(),
+            # 'roles': self.roles,
         }
 
     @property
@@ -87,9 +93,9 @@ def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调
     return User.query.get(int(user_id)) 		# id默认传入的是字符串所以要int下
 
 
-user_role = db.Table('tp_user_role',		# 用户角色关联表
-                     db.Column('user_id', db.Integer, db.ForeignKey('tp_user.id')),     # 必须是真实表名.id，当然也可以是类名前提是__tablename__不写
-                     db.Column('role_id', db.Integer, db.ForeignKey('tp_role.id'))
+role_menu = db.Table('tp_role_menu',		# 角色菜单关联表
+                     db.Column('role_id', db.Integer, db.ForeignKey('tp_role.id')),
+                     db.Column('menu_id', db.Integer, db.ForeignKey('tp_menu.id')),
                      )
 
 
@@ -100,35 +106,37 @@ class Role(db.Model):
     role_name = db.Column(db.String(20), unique=True, comment='角色名称')
     role_level = db.Column(db.Integer, unique=True, comment='角色等级')     # 1最高，2中等，3低等
     introduction = db.Column(db.String(200), comment='角色介绍')
-    users = db.relationship('User', secondary=user_role, backref=db.backref('roles', lazy='dynamic'))
+    # users = db.relationship('User', secondary=user_role, backref=db.backref('roles', lazy='dynamic'))
     # Role.users	User.role
-    menus = db.relationship('Menu', secondary=user_role, backref=db.backref('roles', lazy='dynamic'))
+    menus = db.relationship('Menu', secondary=role_menu, backref=db.backref('roles', lazy='dynamic'))
     
     def __init__(self, role_name, role_level, introduction=None):
         self.role_name = role_name
         self.role_level = role_level
         self.introduction = introduction
-        
+    
+    @property
+    def serialize(self):
+        return {
+            'id': self.id,
+            'role_name': self.role_name,
+            'role_level': self.role_level,
+            # 'menus': self.menus
+        }
+    
     @staticmethod
     def init_role():
-        print('初始化角色表')
         role = Role.query.filter_by(role_name='超级管理员').first()
         if not role:
+            print('初始化角色表')
             role = Role(role_name='超级管理员', role_level=1, introduction='超级管理员')
             user = User.query.filter_by(id=1).first()
             role.users = [user]
             db.session.add(role)
             db.session.commit()
     
-    
     def __repr__(self):
         return "<Role (role_name='%r')> " % self.role_name
-
-
-role_menu = db.Table('tp_role_menu',		# 角色菜单关联表
-                     db.Column('role_id', db.Integer, db.ForeignKey('tp_role.id')),
-                     db.Column('menu_id', db.Integer, db.ForeignKey('tp_menu.id')),
-                     )
 
 
 class Menu(db.Model):
@@ -138,9 +146,9 @@ class Menu(db.Model):
     menu_name = db.Column(db.String(20))
     menu_url = db.Column(db.String(100), comment='菜单路由')
     icon_class = db.Column(db.String(50), comment='菜单图标', default=None)
-    status = db.Column(db.CHAR(1),default=1, comment='软删除,0已删除，1正常状态，默认1')
-    # parent_id = db.Column(db.Integer, default=None, comment='父级菜单id')
-    parent = db.relationship('Menu', remote_side=[id])  # 自关联
+    status = db.Column(db.CHAR(1), default=1, comment='软删除,0已删除，1正常状态，默认1')
+    parent_id = db.Column(db.Integer, db.ForeignKey("tp_menu.id"))  # 父id
+    parent = db.relationship('Menu', remote_side=[id])  # 自关联关系
     # roles = db.relationship('Role', secondary=role_menu, backref=db.backref('menus', lazy='dynamic'))
     # Menu.roles    Role.menus
     
@@ -155,19 +163,20 @@ class Menu(db.Model):
     
     @staticmethod
     def init_menu():
-        print("初始化菜单表")
         menu = Menu.query.filter_by(status='1').all()
         if not menu:
-            menu1 = Menu(1, '系统管理', '/sysManagement')
+            print("初始化菜单表")
+            menu1 = Menu('系统管理', '/sysManagement')
+            # db.session.add(menu1)
+            # db.session.commit()
+            menu2 = Menu(menu_name='用户管理', menu_url='/userManagement', parent=menu1)
+            menu3 = Menu(menu_name='角色管理', menu_url='/roleManagement', parent=menu1)
+            menu4 = Menu(menu_name='菜单管理', menu_url='/menuManagement', parent=menu1)
             db.session.add(menu1)
-            db.session.commit()
-            menu2 = Menu(2, '用户管理', '/userManagement', parent=1)
-            menu3 = Menu(3, '角色管理', '/roleManagement', parent=1)
-            menu4 = Menu(4, '菜单管理', '/menuManagement', parent=1)
             db.session.add(menu2)
             db.session.add(menu3)
             db.session.add(menu4)
-            role = Role.query.filter(id=1).first()
+            role = Role.query.filter_by(id=1).first()
             role.menus = [menu1, menu2, menu3, menu4]
             db.session.add(role)
             db.session.commit()
