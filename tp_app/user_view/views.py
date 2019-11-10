@@ -11,6 +11,7 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from functools import wraps
 import json
 
+
 def create_token(user):     # 生成时效token
     s = Serializer('secret-key', expires_in=60)
     token = s.dumps({'id': user.id}).decode("ascii")
@@ -33,7 +34,7 @@ def require_token(func):    # 给需要登录的路由装上，就可以控制ur
         if 'token' not in session:
             ret = {
                 'code': -1,
-                'msg': '没有token，访问被拒绝！',
+                'msg': u'没有token，访问被拒绝！',
             }
             return Response(json.dumps(ret), mimetype='application/json')
         else:
@@ -41,9 +42,9 @@ def require_token(func):    # 给需要登录的路由装上，就可以控制ur
             if not user:
                 ret = {
                     'code': -2,
-                    'msg': 'token失效，请重新登录！',
+                    'msg': u'token失效，请重新登录！',
                 }
-                return redirect('/login', Response(json.dumps(ret), mimetype='application/json'))
+                return Response(json.dumps(ret), mimetype='application/json')
         return func(*args, **kwargs)
     return check_token
 
@@ -94,10 +95,10 @@ def login():
         'data': {}
     }
     if request.method == 'POST':
-        print(request.values)
+        # print(request.values)
         user_code = request.values.get('user_code') or 'admin'    # args只获取地址栏中参数
         password = request.values.get('password') or '123456'
-        print(user_code, password)
+        # print(user_code, password)
         user = User.query.filter_by(user_code=user_code).first()
         if not check_password(password, user.password_hashlib):
             ret['msg'] = '密码验证失败！'
@@ -134,7 +135,7 @@ def user_profile():
         'msg': '',
         'data': {}
     }
-    user_id = request.json.get('user_id')
+    user_id = request.json.get('user_id') or 1
     user = User.query.filter_by(user_id=user_id)[0]
     if request.method == 'POST':
         if not user:
