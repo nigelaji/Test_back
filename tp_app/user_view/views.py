@@ -1,25 +1,26 @@
 # coding:utf-8
-from flask import jsonify, request, redirect, session, Response
-from flask_login import login_user, logout_user, current_user, login_required
-from sqlalchemy import desc
+from flask import jsonify, request, redirect, session, Response, abort
+# from flask_login import login_user, logout_user, current_user, require_token
 from tp_app import db, app
 from . import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
 from tp_app.common.security import check_password
+from tp_app.config import SECRET_KEY
 import time
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from functools import wraps
 import json
+import traceback
 
 
-def create_token(user):     # 生成时效token
-    s = Serializer('secret-key', expires_in=60)
-    token = s.dumps({'id': user.id}).decode("ascii")
+def create_token(user, expire=3600):     # 生成时效token
+    s = Serializer(secret_key=SECRET_KEY, expires_in=expire)
+    token = s.dumps({'id': user.id})
     return token
 
 
 def verify_token(token):    # token验证
-    s = Serializer(app.config["SECRET_KEY"])    # 参数为私有秘钥，跟上面方法的秘钥保持一致
+    s = Serializer(secret_key=SECRET_KEY)    # 参数为私有秘钥，跟上面方法的秘钥保持一致
     try:
         data = s.loads(token)   # 转换为字典
     except Exception:
@@ -58,13 +59,13 @@ def register():
         'data': {}
     }
     if request.method == 'POST':    # 邮箱注册
-        # user = User.query.filter_by(email=request.POST.get('')).first()
         email = request.json.get('email')
-        password1 = request.args.get('password1')
-        password2 = request.args.get('password2')
-        verification_code = request.args.get('verification_code')
+        password1 = request.json.get('password1')
+        password2 = request.json.get('password2')
+        verification_code = request.json.get('verification_code')
+        print(email, password1, password2, verification_code)
         # 开始验证注册信息
-        if email and password1 and password2 and verification_code:
+        if not (email and password1 and password2 and verification_code):
             ret['msg'] = "缺少必填信息！"
             return jsonify(ret)
         user = User.query.filter_by(email=email).first()
@@ -82,8 +83,8 @@ def register():
         user = User(username=user_default_name, password=password1, email=email)
         db.session.add(user)
         db.session.commit()
-        print("用户新增成功！")
-        return redirect('/user/profile/')  # 注册成功，重定向到个人profile页面，可修改信息
+        ret['data'] = "用户新增成功！"
+        return jsonify(ret)  # 注册成功，前端可重定向到个人profile页面，可修改信息
 
 
 # 用户登录
@@ -95,34 +96,44 @@ def login():
         'data': {}
     }
     if request.method == 'POST':
-        # print(request.values)
-        user_code = request.values.get('user_code') or 'admin'    # args只获取地址栏中参数
-        password = request.values.get('password') or '123456'
-        # print(user_code, password)
+        # print(request.values, request.json, request.args, request.form, request.data)
+        user_code = request.json.get('user_code')    # 请求中的json一定要是标准格式的，引号要双引号
+        password = request.json.get('password')
+        # request.form.get('...')     # 是从form表单中获取值的方式
+        # request.args.get('...')     # 是从url链接后获取值的方式，一般是get方法用的
+        # request.json.get('...')     # post请求，请求体是json串，请求头是这种类型的'Content-Type': "application/json",
+        # request.values.get('...')   # 待定
+        # request.data                # 二进制字节串
         user = User.query.filter_by(user_code=user_code).first()
         if not check_password(password, user.password_hashlib):
             ret['msg'] = '密码验证失败！'
             return jsonify(ret)
         if user:
-            login_user(user)
-            ret['data'] = user.serialize
+            # print(session)  # 如果这个也打印出来键值，一定是上次请求遗留下来的
+            # login_user(user)    # 这个方法会给session中自动添加user_id,_fresh,_id三个键值
+            # ret['data'] = user.serialize
             token = create_token(user)  # 创建token
+            session['user'] = user
             session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
-            print(token)
-            return jsonify(ret)
+            ret['data'] = user.serialize
+            res = Response(json.dumps(ret), mimetype='application/json')
+            res.set_cookie('token', token)  # 之后前端拿着这个令牌就可以为所欲为了
+            # print(session)
+            return res
 
 
 # 登出，GET
-@user_blue.route('/logout')
-@login_required     # 意思就是必须登录的用户才能请求的路由,系统自带的装饰器
+@user_blue.route('/logout', methods=['POST'])
+@require_token     # 意思就是必须登录的用户才能请求的路由,系统自带的装饰器
 def logout():
     ret = {
         'code': 200,
         'msg': '',
         'data': {}
     }
-    x = logout_user()
+    session.pop('token')
     # UserLogEvent
+    ret['msg'] = '退出登录，清除token'
     return jsonify(ret)
 
 
@@ -135,13 +146,10 @@ def user_profile():
         'msg': '',
         'data': {}
     }
-    user_id = request.json.get('user_id') or 1
-    user = User.query.filter_by(user_id=user_id)[0]
     if request.method == 'POST':
-        if not user:
-            ret['msg'] = '用户不存在！'
-            return jsonify(ret)
-        ret['data'] = user.serialize
+        user = verify_token(session['token'])
+        user = User.query.filter_by(id=int(user.id)).first()
+        ret['data'] = user.person_info
     return jsonify(ret)
 
 
@@ -149,59 +157,129 @@ def user_profile():
 @user_blue.route('/password', methods=['POST'])
 @require_token
 def update_password():
-    user_id = request.args.get('user_id')
-    old_password = request.args.get('old_password')
-    new_password1 = request.args.get('new_password1')
-    new_password2 = request.args.get('new_password2')
-    user = User.query.filter_by(id=user_id).first()
-    if check_password(old_password, user.password):
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    if request.method == 'POST':
+        old_password = request.json.get('old_password')
+        new_password1 = request.json.get('new_password1')
+        new_password2 = request.json.get('new_password2')
+        user = User.query.filter_by(id=session['user_id']).first()
+        if check_password(old_password, user.password):     # 先检查老密码是否正确
+            if new_password1 == new_password2:              # 再检查两次新密码输入是否正确
+                user.password = new_password1
+                db.session.add(user)
+                db.session.commit()
+                ret['msg'] = '密码修改成功，重新登录获取token'
+    return jsonify(ret)
+
+
+# ---------获取用户的一些东西-------
+@user_blue.route('/user/roles', methods=['POST'])
+@require_token
+def user_menu():
+    # 获取用户角色
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
         pass
-    
-    return
+    except Exception:
+        ret['msg'] = traceback.format_exc()
+    return jsonify(ret)
+
+
+@user_blue.route('/user/menus', methods=['POST'])
+@require_token
+def user_menu():
+    # 用户通过角色获取菜单，用户切换角色时的菜单
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        pass
+    except Exception:
+        ret['msg'] = traceback.format_exc()
+    return jsonify(ret)
+
 
 
 # ---------------角色增删改查，角色关联菜单------------------
 @user_blue.route('/role/add', methods=['POST'])
 @require_token
 def add_role():
-    return
-
-
-@user_blue.route('/role/delete', methods=['POST'])
-@require_token
-def delete_role():
-    return
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        role = Role(**request.json)
+        db.session.add(role)
+        db.session.commit()
+        ret['msg'] = "角色新增成功"
+    except Exception:
+        ret['msg'] = traceback.format_exc()
+    return jsonify(ret)
 
 
 @user_blue.route('/role/update', methods=['POST'])
 @require_token
-def update_role():
-    return
+def update_role():      # 适用软删除和更新
+    # 角色只能超级管理员更改
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        role_id = request.json.get('role_id')
+        role = Role.query.filter_by(id=int(role_id)).first()
+        for k, v in request.json.items():
+            if k in role.__dict__:
+                role.__dict__['k'] = v
+        db.session.add(role)
+        db.session.commit()
+        ret['msg'] = "角色更新成功"
+    except Exception:
+        ret['msg'] = traceback.format_exc()
+    return jsonify(ret)
 
 
 @user_blue.route('/role/list', methods=['GET'])
 @require_token
 def role_list():
-    return
+    # 角色列表只能管理员查看
+    
+    pageSize = request.args.get('pageSize', 1, type=int)
+    pageNum = request.args.get('pageNum', 10, type=int)
+    pagination = Role.query.paginate(pageSize, per_page=pageNum, error_out=False)
+    roles = pagination.items
+    res = []
+    for role in roles:
+        temp_role = {'id': role.id, 'name': role.role_name}
+        res.append(temp_role)
+    return jsonify(res)
 
 
-@user_blue.route('/role/authorize_menu', methods=['POST'])  # 授权菜单
+@user_blue.route('/role/authorize_user', methods=['POST'])  # 授权用户角色
 @require_token
-def authorize_menu():
+def authorize_role():
+    # 只有管理员能授权用户角色，且不能授权管理员角色，普通管理员不能授权超级管理员角色
     return
 
 
-# ----------------菜单增删改查----------------------
+# ----------------菜单增删改查，菜单只有超级管理员可更改----------------------
 @user_blue.route('/menu/add', methods=['POST'])     # 建菜单目录和菜单
 @require_token
 def add_menu():
     #
-    return
-
-
-@user_blue.route('/menu/delete', methods=['POST'])
-@require_token
-def delete_menu():
     return
 
 
@@ -214,5 +292,11 @@ def update_menu():
 @user_blue.route('/menu/list', methods=['GET'])
 @require_token
 def menu_list():
+    # 这是查看菜单列表的接口
     return
 
+
+@user_blue.route('/menu/authorize_role', methods=['POST'])  # 授权角色菜单
+@require_token
+def authorize_menu():
+    return

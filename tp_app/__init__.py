@@ -10,7 +10,6 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///my_blog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True         # 如果没有这行会有警告
 app.config["SECRET_KEY"] = "12345678"     # 如果没有，在生成表单的时候，会出现 CRSF 相关错误
-
 app.config['MAIL_SERVER'] = 'smtp.163.com'
 app.config['MAIL_PORT'] = 25
 app.config['MAIL_USE_TLS'] = True

@@ -1,11 +1,12 @@
 # coding:utf-8
 import json
-from flask import make_response, jsonify, Response
+from flask import make_response, jsonify, Response, session
 from tp_app import app
 
 
 @app.route('/')
 def index():
+	print(session)
 	return 'hello world'
 
 
