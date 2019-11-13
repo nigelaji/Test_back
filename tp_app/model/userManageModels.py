@@ -45,13 +45,15 @@ class User(UserMixin, db.Model):
     def password(self, password):  # 插入明文密码时，自动加密
         self.password_hashlib = encrypt_with_salt(password)
     
-    def __init__(self, username, password, email, user_code=None, phone=None, remark=None):
+    def __init__(self, username, password, email, user_code=None, phone=None, remark=None, status='1', locked='1'):
         self.username = username
         self.password = password
         self.email = email
         self.user_code = user_code
         self.phone = phone
         self.remark = remark
+        self.status = status
+        self.locked = locked
     
     @staticmethod
     def init_admin():		# 初始化管理员用户
@@ -61,9 +63,10 @@ class User(UserMixin, db.Model):
             user1 = User(username='超级管理员', password='123456', email='838863149@qq.com', user_code='super_admin')  # 有__init__方法才能这样写
             user2 = User(username='管理员', password='123456', email='admin@qq.com', user_code='admin')
             user3 = User(username='普通用户', password='123456', email='guest@qq.com', user_code='guest')
-            db.session.add(user1)
-            db.session.add(user2)
-            db.session.add(user3)
+            user4 = User(username='测试账户1', password='123456', email='test1@qq.com', user_code='test1')
+            user5 = User(username='已删除账户', password='123456', email='test2@qq.com', user_code='test2', status='0')
+            user6 = User(username='已锁定账户', password='123456', email='test3@qq.com', user_code='test3', locked='0')
+            db.session.add_all(user1, user2, user3, user4, user5, user6)
             db.session.commit()
     
     def __repr__(self):
@@ -80,7 +83,7 @@ class User(UserMixin, db.Model):
             'create_time': dump_datetime(self.create_time),
             # 'update_time': dump_datetime(self.update_time),
             'locked': self.locked,
-            # 'locked_time': dump_datetime(self.locked_time),
+            'locked_time': dump_datetime(self.locked_time),
             # 'unlocked_time': dump_datetime(self.unlocked_time),
             'remark': self.remark,
         }
@@ -89,7 +92,7 @@ class User(UserMixin, db.Model):
     def serialize(self):
         """直接返回一个简单的序列化json串"""
         if self.status == '0' or self.locked == '0':
-            return {'msg': '用户被删除或锁定，联系管理员'}
+            return {}
         return {
             'id': self.id,
             'username': self.username,
@@ -97,12 +100,12 @@ class User(UserMixin, db.Model):
             'email': self.email,
             'phone': self.phone,
             'create_time': dump_datetime(self.create_time),
-            'update_time': dump_datetime(self.update_time),
-            'locked': self.locked,
-            'locked_time': dump_datetime(self.locked_time),
-            'unlocked_time': dump_datetime(self.unlocked_time),
+            # 'update_time': dump_datetime(self.update_time),
+            # 'locked': self.locked,
+            # 'locked_time': dump_datetime(self.locked_time),
+            # 'unlocked_time': dump_datetime(self.unlocked_time),
             'remark': self.remark,
-            'roles': [role.serialize for role in self.roles],
+            'roles': [role.serialize for role in self.roles if role],
         }
 
 
@@ -125,19 +128,18 @@ class Role(db.Model):
     role_level = db.Column(db.Integer, unique=True, comment='角色等级')     # 1最高，2中等，3低等
     status = db.Column(db.CHAR(1), default=1, comment='软删除,0已删除，1正常状态，默认值1')
     introduction = db.Column(db.String(200), comment='角色介绍')
-    # users = db.relationship('User', secondary=user_role, backref=db.backref('roles', lazy='dynamic'))
-    # Role.users	User.role
     menus = db.relationship('Menu', secondary=role_menu, backref=db.backref('roles', lazy='dynamic'))
     
-    def __init__(self, role_name, role_level, introduction=None):
+    def __init__(self, role_name, role_level, introduction=None, status='1'):
         self.role_name = role_name
         self.role_level = role_level
         self.introduction = introduction
+        self.status = status
     
     @property
     def role_info(self):
         if self.status == '0':
-            return {'msg': '角色已被删除'}
+            return {}
         return {
             'id': self.id,
             'role_name': self.role_name,
@@ -148,12 +150,12 @@ class Role(db.Model):
     @property
     def serialize(self):
         if self.status == '0':
-            return {'msg': '角色已被删除'}
+            return {}
         return {
             'id': self.id,
             'role_name': self.role_name,
             'role_level': self.role_level,
-            'menus': [menu.serialize for menu in self.menus]
+            'menus': [menu.serialize for menu in self.menus if menu]
         }
     
     @staticmethod
@@ -164,15 +166,15 @@ class Role(db.Model):
             role1 = Role(role_name='超级管理员', role_level=1, introduction='超级管理员，最高角色权限，一般不外传')
             role2 = Role(role_name='管理员', role_level=2, introduction='企业用户管理员角色使用')
             role3 = Role(role_name='普通用户', role_level=3, introduction='企业下普通用户使用')
+            role4 = Role(role_name='已删除角色', role_level=3, introduction='测试删除状态角色', status='0')
             user1 = User.query.filter_by(id=1).first()
             user2 = User.query.filter_by(id=2).first()
             user3 = User.query.filter_by(id=3).first()
             role1.users = [user1]
             role2.users = [user1, user2]
             role3.users = [user1, user2, user3]
-            db.session.add(role1)
-            db.session.add(role2)
-            db.session.add(role3)
+            role4.users = [user1, user2, user3]
+            db.session.add_all(role1, role2, role3, role4)
             db.session.commit()
     
     def __repr__(self):
@@ -189,19 +191,18 @@ class Menu(db.Model):
     status = db.Column(db.CHAR(1), default=1, comment='软删除,0已删除，1正常状态，默认1')
     parent_id = db.Column(db.Integer, db.ForeignKey("tp_menu.id"))  # 父id
     parent = db.relationship('Menu', remote_side=[id])  # 自关联关系
-    # roles = db.relationship('Role', secondary=role_menu, backref=db.backref('menus', lazy='dynamic'))
-    # Menu.roles    Role.menus
     
-    def __init__(self, menu_name, menu_url, icon_class=None, parent=None):
+    def __init__(self, menu_name, menu_url, icon_class=None, parent=None, status='1'):
         self.menu_name = menu_name
         self.menu_url = menu_url
         self.icon_class = icon_class
         self.parent = parent
+        self.status = status
     
     @property
-    def serialize(self):        # 菜单编辑的时候也可以用这个属性
+    def serialize(self):        #
         if self.status == '0':
-            return {'msg': '菜单已被删除'}
+            return {}
         return {
             'id': self.id,
             'menu_name': self.menu_name,
@@ -219,40 +220,34 @@ class Menu(db.Model):
         if not menu:
             print("初始化菜单表")
             menu1 = Menu('系统管理', '')
-            # db.session.add(menu1)
-            # db.session.commit()
             menu2 = Menu(menu_name='用户管理', menu_url='/userManagement', parent=menu1)
             menu3 = Menu(menu_name='角色管理', menu_url='/roleManagement', parent=menu1)
             menu4 = Menu(menu_name='菜单管理', menu_url='/menuManagement', parent=menu1)
-            db.session.add(menu1)
-            db.session.add(menu2)
-            db.session.add(menu3)
-            db.session.add(menu4)
+            db.session.add_all(menu1, menu2, menu3, menu4)
             
             menu5 = Menu(menu_name='功能管理', menu_url='')
             menu6 = Menu(menu_name='功能菜单1', menu_url='/funcMenu1', parent=menu5)
             menu7 = Menu(menu_name='功能菜单2', menu_url='/funcMenu2', parent=menu5)
             menu8 = Menu(menu_name='功能菜单3', menu_url='/funcMenu3', parent=menu5)
-            db.session.add(menu5)
-            db.session.add(menu6)
-            db.session.add(menu7)
-            db.session.add(menu8)
+            db.session.add_all(menu5, menu6, menu7, menu8)
+
+            menu9 = Menu(menu_name='测试菜单', menu_url='')
+            menu10 = Menu(menu_name='已删除菜单', menu_url='/testMenu1', parent=menu9, status='0')
+            menu11 = Menu(menu_name='普通菜单', menu_url='/testMenu2', parent=menu9)
+            db.session.add_all(menu9, menu10, menu11)
             
             # 给超级管理员赋权所有菜单
             role1 = Role.query.filter_by(id=1).first()
-            role1.menus = [menu1, menu2, menu3, menu4, menu5, menu6, menu7, menu8]
+            role1.menus = [menu1, menu2, menu3, menu4, menu5, menu6, menu7, menu8, menu9, menu10, menu11]
             # 给普通管理员赋权菜单
             role2 = Role.query.filter_by(id=2).first()
-            role2.menus = [menu1, menu2, menu5, menu6, menu7, menu8]
+            role2.menus = [menu1, menu2, menu5, menu6, menu7, menu8, menu9, menu10, menu11]
             # 给普通用户赋权菜单
             role3 = Role.query.filter_by(id=3).first()
-            role3.menus = [menu5, menu6, menu7, menu8]
-            db.session.add(role1)
-            db.session.add(role2)
-            db.session.add(role3)
+            role3.menus = [menu5, menu6, menu7, menu8, menu9, menu10, menu11]
+            db.session.add_all(role1, role2, role3)
             db.session.commit()
             
-
 
 class UserLogEvent(db.Model):
     """用户登录事件记录"""

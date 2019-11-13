@@ -1,6 +1,6 @@
 # coding:utf-8
-from flask import jsonify, request, redirect, session, Response, abort
-# from flask_login import login_user, logout_user, current_user, require_token
+from flask import jsonify, request, redirect, session, Response, abort, g
+# from flask_login import login_user, logout_user, current_user, require_token  #
 from tp_app import db, app
 from . import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
@@ -13,7 +13,7 @@ import json
 import traceback
 
 
-def create_token(user, expire=3600):     # 生成时效token
+def create_token(user, expire=600):     # 生成时效token，单位秒
     s = Serializer(secret_key=SECRET_KEY, expires_in=expire)
     token = s.dumps({'id': user.id})
     return token
@@ -25,14 +25,14 @@ def verify_token(token):    # token验证
         data = s.loads(token)   # 转换为字典
     except Exception:
         return None
-    user = User.query.get(data["id"])       # 拿到转换后的数据，根据模型类去数据库查询用户信息
-    return user
+    # user = User.query.get(data["id"])       # 拿到转换后的数据，根据模型类去数据库查询用户信息
+    return data['id']   # 返回user_id
 
 
 def require_token(func):    # 给需要登录的路由装上，就可以控制url必须登录才能访问了。
-    @wraps(func)
+    @wraps(func)    # functools的wrap，它能保留原有函数的名称和docstring。
     def check_token(*args, **kwargs):
-        if 'token' not in session:
+        if not session.get('token'):
             ret = {
                 'code': -1,
                 'msg': u'没有token，访问被拒绝！',
@@ -48,6 +48,22 @@ def require_token(func):    # 给需要登录的路由装上，就可以控制ur
                 return Response(json.dumps(ret), mimetype='application/json')
         return func(*args, **kwargs)
     return check_token
+
+
+def require_admin(*role_level):  # 必须管理员角色等级验证
+    def require(func):
+        @wraps(func)
+        def check_admin(*args, **kwargs):
+            print(session)
+            if session.get('current_role_level') not in role_level:
+                ret = {
+                    'code': -3,
+                    'msg': '你没有权限做此操作'
+                }
+                return jsonify(ret)
+            return func(*args, **kwargs)
+        return check_admin
+    return require
 
 
 # 用户邮箱注册
@@ -113,13 +129,17 @@ def login():
             # login_user(user)    # 这个方法会给session中自动添加user_id,_fresh,_id三个键值
             # ret['data'] = user.serialize
             token = create_token(user)  # 创建token
-            session['user'] = user
+            session['user_id'] = user.id    # session中只能存储可序列化的值，包括二层、三层..
+            # session['current_role_id'] = [role.role_level for role in user.roles if role]
+            session['current_role_level'] = 1
             session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
             ret['data'] = user.serialize
             res = Response(json.dumps(ret), mimetype='application/json')
             res.set_cookie('token', token)  # 之后前端拿着这个令牌就可以为所欲为了
-            # print(session)
+            print(session)
             return res
+        else:
+            abort(404)
 
 
 # 登出，GET
@@ -147,8 +167,7 @@ def user_profile():
         'data': {}
     }
     if request.method == 'POST':
-        user = verify_token(session['token'])
-        user = User.query.filter_by(id=int(user.id)).first()
+        user = User.query.filter_by(id=session['user_id']).first()
         ret['data'] = user.person_info
     return jsonify(ret)
 
@@ -177,49 +196,35 @@ def update_password():
 
 
 # ---------获取用户的一些东西-------
-@user_blue.route('/user/roles', methods=['POST'])
+@user_blue.route('/roles_menus', methods=['POST'])
 @require_token
-def user_menu():
-    # 获取用户角色
+def user_roles_menus():
+    # 获取用户角色和菜单
     ret = {
         'code': 200,
         'msg': '',
         'data': {}
     }
     try:
-        pass
+        user = User.query.filter_by(id=session['user_id']).first()
+        ret['data'] = [role.serialize for role in user.roles if role]
     except Exception:
         ret['msg'] = traceback.format_exc()
     return jsonify(ret)
-
-
-@user_blue.route('/user/menus', methods=['POST'])
-@require_token
-def user_menu():
-    # 用户通过角色获取菜单，用户切换角色时的菜单
-    ret = {
-        'code': 200,
-        'msg': '',
-        'data': {}
-    }
-    try:
-        pass
-    except Exception:
-        ret['msg'] = traceback.format_exc()
-    return jsonify(ret)
-
 
 
 # ---------------角色增删改查，角色关联菜单------------------
 @user_blue.route('/role/add', methods=['POST'])
+@require_admin(1)
 @require_token
-def add_role():
+def add_role():     # 新增角色
     ret = {
         'code': 200,
         'msg': '',
         'data': {}
     }
     try:
+        User.query.filter_by(id=session['user_id']).first()
         role = Role(**request.json)
         db.session.add(role)
         db.session.commit()
@@ -239,14 +244,14 @@ def update_role():      # 适用软删除和更新
         'data': {}
     }
     try:
-        role_id = request.json.get('role_id')
+        role_id = request.json.pop('role_id')
         role = Role.query.filter_by(id=int(role_id)).first()
         for k, v in request.json.items():
             if k in role.__dict__:
-                role.__dict__['k'] = v
+                role.__setattr__(k, v)  #
         db.session.add(role)
         db.session.commit()
-        ret['msg'] = "角色更新成功"
+        ret['msg'] = "角色更新或删除成功"
     except Exception:
         ret['msg'] = traceback.format_exc()
     return jsonify(ret)
