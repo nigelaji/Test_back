@@ -32,6 +32,7 @@ def verify_token(token):    # token验证
 def require_token(func):    # 给需要登录的路由装上，就可以控制url必须登录才能访问了。
     @wraps(func)    # functools的wrap，它能保留原有函数的名称和docstring。
     def check_token(*args, **kwargs):
+        print('check_token ==>', session)
         if not session.get('token'):
             ret = {
                 'code': -1,
@@ -50,12 +51,15 @@ def require_token(func):    # 给需要登录的路由装上，就可以控制ur
     return check_token
 
 
-def require_admin(*role_level):  # 必须管理员角色等级验证
+def require_role_level(*role_level):  # 必须管理员角色等级验证
     def require(func):
         @wraps(func)
         def check_admin(*args, **kwargs):
-            print(session)
-            if session.get('current_role_level') not in role_level:
+            if session.get('current_role_level') == 1:
+                pass
+            elif session.get('current_role_level') == 2:
+                pass
+            else:
                 ret = {
                     'code': -3,
                     'msg': '你没有权限做此操作'
@@ -121,22 +125,22 @@ def login():
         # request.values.get('...')   # 待定
         # request.data                # 二进制字节串
         user = User.query.filter_by(user_code=user_code).first()
-        if not check_password(password, user.password_hashlib):
-            ret['msg'] = '密码验证失败！'
-            return jsonify(ret)
         if user:
+            if not check_password(password, user.password_hashlib):
+                ret['msg'] = '密码验证失败！'
+                return jsonify(ret)
             # print(session)  # 如果这个也打印出来键值，一定是上次请求遗留下来的
             # login_user(user)    # 这个方法会给session中自动添加user_id,_fresh,_id三个键值
             # ret['data'] = user.serialize
             token = create_token(user)  # 创建token
             session['user_id'] = user.id    # session中只能存储可序列化的值，包括二层、三层..
-            # session['current_role_id'] = [role.role_level for role in user.roles if role]
-            session['current_role_level'] = 1
+            # session['current_role_level'] = [role.role_level for role in user.roles if role]
+            session['current_role_level'] = [role.role_level for role in user.roles if role][0]
             session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
             ret['data'] = user.serialize
             res = Response(json.dumps(ret), mimetype='application/json')
             res.set_cookie('token', token)  # 之后前端拿着这个令牌就可以为所欲为了
-            print(session)
+            print('login ==>', session)
             return res
         else:
             abort(404)
@@ -215,7 +219,7 @@ def user_roles_menus():
 
 # ---------------角色增删改查，角色关联菜单------------------
 @user_blue.route('/role/add', methods=['POST'])
-@require_admin(1)
+@require_role_level(1, 2)
 @require_token
 def add_role():     # 新增角色
     ret = {
@@ -224,17 +228,19 @@ def add_role():     # 新增角色
         'data': {}
     }
     try:
-        User.query.filter_by(id=session['user_id']).first()
-        role = Role(**request.json)
+        role = Role(**request.json, create_user_id=session['user_id'])
         db.session.add(role)
         db.session.commit()
         ret['msg'] = "角色新增成功"
-    except Exception:
-        ret['msg'] = traceback.format_exc()
+    except TypeError as e:
+        traceback.print_exc()
+        ret['code'] = -1
+        ret['msg'] = "%s" % e
     return jsonify(ret)
 
 
 @user_blue.route('/role/update', methods=['POST'])
+@require_role_level(1, 2)
 @require_token
 def update_role():      # 适用软删除和更新
     # 角色只能超级管理员更改
@@ -245,10 +251,15 @@ def update_role():      # 适用软删除和更新
     }
     try:
         role_id = request.json.pop('role_id')
-        role = Role.query.filter_by(id=int(role_id)).first()
-        for k, v in request.json.items():
-            if k in role.__dict__:
-                role.__setattr__(k, v)  #
+        role = Role.query.filter_by(id=int(role_id), create_user_id=session['user_id']).first()
+        if role:
+            for k, v in request.json.items():
+                if k in role.__dict__:
+                    role.__setattr__(k, v)  # 不能role.__dict__[k] = v这种方式改，改不成功的
+        else:
+            ret['code'] = -1
+            ret['msg'] = "别人的角色你改啥？很牛逼？"
+            return jsonify(ret)
         db.session.add(role)
         db.session.commit()
         ret['msg'] = "角色更新或删除成功"
@@ -257,19 +268,18 @@ def update_role():      # 适用软删除和更新
     return jsonify(ret)
 
 
-@user_blue.route('/role/list', methods=['GET'])
+@user_blue.route('/role/list', methods=['POST'])
+@require_role_level(1, 2)
 @require_token
 def role_list():
     # 角色列表只能管理员查看
-    
-    pageSize = request.args.get('pageSize', 1, type=int)
-    pageNum = request.args.get('pageNum', 10, type=int)
-    pagination = Role.query.paginate(pageSize, per_page=pageNum, error_out=False)
+    pageSize = request.json.get('pageSize') or 1
+    pageNum = request.json.get('pageNum') or 10
+    pagination = Role.query.filter_by(status='1').paginate(pageSize, per_page=pageNum, error_out=False)
     roles = pagination.items
     res = []
     for role in roles:
-        temp_role = {'id': role.id, 'name': role.role_name}
-        res.append(temp_role)
+        res.append(role.role_info)
     return jsonify(res)
 
 
