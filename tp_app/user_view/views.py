@@ -32,13 +32,13 @@ def verify_token(token):    # token验证
 def require_token(func):    # 给需要登录的路由装上，就可以控制url必须登录才能访问了。
     @wraps(func)    # functools的wrap，它能保留原有函数的名称和docstring。
     def check_token(*args, **kwargs):
-        print('check_token ==>', session)
+        # print('check_token ==>', session)
         if not session.get('token'):
             ret = {
                 'code': -1,
                 'msg': u'没有token，访问被拒绝！',
             }
-            return Response(json.dumps(ret), mimetype='application/json')
+            return Response(json.dumps(ret), status=401, mimetype='application/json')
         else:
             user = verify_token(session['token'])
             if not user:
@@ -55,16 +55,14 @@ def require_role_level(*role_level):  # 必须管理员角色等级验证
     def require(func):
         @wraps(func)
         def check_admin(*args, **kwargs):
-            if session.get('current_role_level') == 1:
-                pass
-            elif session.get('current_role_level') == 2:
+            if session.get('current_user_role_id') in role_level:
                 pass
             else:
                 ret = {
                     'code': -3,
-                    'msg': '你没有权限做此操作'
+                    'msg': '辣鸡，你被拒绝了。哦哦好可怜哦！'
                 }
-                return jsonify(ret)
+                return Response(json.dumps(ret), status=403, mimetype='application/json')
             return func(*args, **kwargs)
         return check_admin
     return require
@@ -126,6 +124,9 @@ def login():
         # request.data                # 二进制字节串
         user = User.query.filter_by(user_code=user_code).first()
         if user:
+            if user.locked == '0' or user.status == '0':
+                ret['msg'] = '你的用户已被禁用或删除'
+                return jsonify(ret)
             if not check_password(password, user.password_hashlib):
                 ret['msg'] = '密码验证失败！'
                 return jsonify(ret)
@@ -134,13 +135,15 @@ def login():
             # ret['data'] = user.serialize
             token = create_token(user)  # 创建token
             session['user_id'] = user.id    # session中只能存储可序列化的值，包括二层、三层..
-            # session['current_role_level'] = [role.role_level for role in user.roles if role]
-            session['current_role_level'] = [role.role_level for role in user.roles if role][0]
+            # session['current_user_role_id'] = [role.role_level for role in user.roles if role]
+            session['current_user_role_id'] = min([role.role_level for role in user.roles if role])
+            role_menu_serialize = Role.query.get(session['current_user_role_id']).serialize
             session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
             ret['data'] = user.serialize
+            ret['data']['current_role_menus'] = role_menu_serialize
             res = Response(json.dumps(ret), mimetype='application/json')
             res.set_cookie('token', token)  # 之后前端拿着这个令牌就可以为所欲为了
-            print('login ==>', session)
+            # print('login ==>', session)
             return res
         else:
             abort(404)
@@ -268,22 +271,30 @@ def update_role():      # 适用软删除和更新
     return jsonify(ret)
 
 
-@user_blue.route('/role/list', methods=['POST'])
+@user_blue.route('/role/list', methods=['GET','POST'])
 @require_role_level(1, 2)
 @require_token
 def role_list():
-    # 角色列表只能管理员查看
-    pageSize = request.json.get('pageSize') or 1
-    pageNum = request.json.get('pageNum') or 10
-    pagination = Role.query.filter_by(status='1').paginate(pageSize, per_page=pageNum, error_out=False)
-    roles = pagination.items
-    res = []
-    for role in roles:
-        res.append(role.role_info)
-    return jsonify(res)
+    # 超级管理员可以看到所有的，管理员只能看到自己建的
+    
+    if request.method == 'POST':
+        pageSize = request.json.get('pageSize') or 1
+        pageNum = request.json.get('pageNum') or 10
+        if session['current_user_role_id'] == 1:
+            pagination = Role.query.filter_by(status='1').paginate(pageSize, per_page=pageNum, error_out=False)
+        else:
+            pagination = Role.query.filter_by(status='1', create_user_id=session['user_id']).paginate(pageSize, per_page=pageNum, error_out=False)
+        roles = pagination.items
+        res = []
+        for role in roles:
+            res.append(role.role_info)
+        return jsonify(res)
+    else:
+        abort(405)      # 405 客户端请求中的方法被禁止
+    
 
-
-@user_blue.route('/role/authorize_user', methods=['POST'])  # 授权用户角色
+@user_blue.route('/role/authorize_user', methods=['POST'])  # 角色授权用户
+@require_role_level(1, 2)
 @require_token
 def authorize_role():
     # 只有管理员能授权用户角色，且不能授权管理员角色，普通管理员不能授权超级管理员角色

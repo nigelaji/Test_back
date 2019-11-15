@@ -1,5 +1,6 @@
 # coding:utf-8
 from tp_app import db, lm
+from flask import session
 from flask_login import UserMixin
 from datetime import datetime
 from tp_app.common.security import encrypt_with_salt
@@ -105,9 +106,9 @@ class User(db.Model):
             # 'locked_time': dump_datetime(self.locked_time),
             # 'unlocked_time': dump_datetime(self.unlocked_time),
             'remark': self.remark,
-            'roles': [role.serialize for role in self.roles if role],
+            'roles': [role.role_info for role in self.roles if role],
         }
-
+    
 
 # @lm.user_loader
 # def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调用于从会话中存储的用户 ID 重新加载用户对象
