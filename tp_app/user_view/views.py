@@ -11,7 +11,7 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from functools import wraps
 import json
 import traceback
-
+from PIL import Image, ImageDraw
 
 def create_token(user, expire=600):     # 生成时效token，单位秒
     s = Serializer(secret_key=SECRET_KEY, expires_in=expire)
@@ -253,9 +253,19 @@ def update_role():      # 适用软删除和更新
         'data': {}
     }
     try:
-        role_id = request.json.pop('role_id')
-        role = Role.query.filter_by(id=int(role_id), create_user_id=session['user_id']).first()
+        role_id = request.json.pop('role_id')       # 前端请求的role_id
+        sess_role = Role.query.filter_by(id=session['current_user_role_id']).first()  # session中存储的role_id
+        role = None
+        if sess_role.role_level == 1:
+            # 最高级角色权限的可以改所有角色
+            role = Role.query.filter_by(id=int(role_id)).first()
+        elif sess_role.role_level == 2:
+            # 普通管理员只能改自己建的
+            role = Role.query.filter_by(id=int(role_id), create_user_id=session['user_id']).first()
+        else:
+            abort(404)
         if role:
+            role = Role.query.filter_by(id=int(role_id)).first()
             for k, v in request.json.items():
                 if k in role.__dict__:
                     role.__setattr__(k, v)  # 不能role.__dict__[k] = v这种方式改，改不成功的
@@ -276,7 +286,7 @@ def update_role():      # 适用软删除和更新
 @require_token
 def role_list():
     # 超级管理员可以看到所有的，管理员只能看到自己建的
-    
+
     if request.method == 'POST':
         pageSize = request.json.get('pageSize') or 1
         pageNum = request.json.get('pageNum') or 10
@@ -291,38 +301,108 @@ def role_list():
         return jsonify(res)
     else:
         abort(405)      # 405 客户端请求中的方法被禁止
-    
+
 
 @user_blue.route('/role/authorize_user', methods=['POST'])  # 角色授权用户
 @require_role_level(1, 2)
 @require_token
 def authorize_role():
-    # 只有管理员能授权用户角色，且不能授权管理员角色，普通管理员不能授权超级管理员角色
+    # 只有管理员能授权用户角色，且不能授权管理员角色和超级管理员角色
+    # 可以对用户授权多个角色
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    role_id_list = request.json.get('role_id_list')
+    target_user = User.query.filter_by().first()
+    target_role = Role.query.filter_by(id in role_id_list)
+    target_user.roles = target_role
+    db.session.add(target_user)
+    db.session.commit()
     return
 
 
 # ----------------菜单增删改查，菜单只有超级管理员可更改----------------------
 @user_blue.route('/menu/add', methods=['POST'])     # 建菜单目录和菜单
+@require_role_level(1)
 @require_token
 def add_menu():
-    #
-    return
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        menu = Menu(**request.json)
+        db.session.add(menu)
+        db.session.commit()
+        ret['msg'] = "菜单新增成功"
+    except Exception as e:
+        traceback.print_exc()
+        ret['code'] = -1
+        ret['msg'] = "%s" % e
+    return jsonify(ret)
 
 
 @user_blue.route('/menu/update', methods=['POST'])
+@require_role_level(1)
 @require_token
 def update_menu():
-    return
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        menu_id = request.json.pop('menu_id')
+        menu = Menu.query.filter_by(id=int(menu_id)).first()
+        for k, v in request.json.items():
+            if k in menu.__dict__:
+                menu.__setattr__(k, v)  # 不能menu.__dict__[k] = v这种方式改，改不成功的
+        db.session.add(menu)
+        db.session.commit()
+        ret['msg'] = "菜单更新或删除成功"
+    except Exception as e:
+        traceback.print_exc()
+        ret['code'] = -1
+        ret['msg'] = "%s" % e
+    return jsonify(ret)
 
 
-@user_blue.route('/menu/list', methods=['GET'])
+@user_blue.route('/menu/list', methods=['GET'])     # 菜单列表
+@require_role_level(1)
 @require_token
 def menu_list():
-    # 这是查看菜单列表的接口
-    return
+    pageSize = request.json.get('pageSize') or 1
+    pageNum = request.json.get('pageNum') or 10
+    pagination = Menu.query.filter_by(status='1').paginate(pageSize, per_page=pageNum, error_out=False)
+    menus = pagination.items
+    res = []
+    for menu in menus:
+        res.append(menu.serialize)
+    return jsonify(res)
 
 
 @user_blue.route('/menu/authorize_role', methods=['POST'])  # 授权角色菜单
+@require_role_level(1)
 @require_token
 def authorize_menu():
-    return
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        role_id = request.json.get('role_id')
+        menu_id_list = request.json.get('menu_id_list')
+        target_role = Role.query.filter_by(id=int(role_id)).first()
+        target_menu = Menu.query.filter_by(id in menu_id_list)
+        target_role.menus = target_menu
+        db.session.add(target_role)
+        db.session.commit()
+    except Exception as e:
+        traceback.print_exc()
+        ret['code'] = -1
+        ret['msg'] = "%s" % e
+    return jsonify(ret)
