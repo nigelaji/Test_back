@@ -1,6 +1,5 @@
 # coding:utf-8
 from flask import jsonify, request, session, Response, abort, g
-# from flask_login import login_user, logout_user, current_user, require_token  #
 from tp_app import db, app
 from . import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
@@ -88,6 +87,10 @@ def login():
             res = Response(json.dumps(ret), mimetype='application/json')
             res.set_cookie('token', token)  # 之后前端拿着这个令牌就可以为所欲为了
             # print('login ==>', session)
+            # 记录登录事件 UserLogEvent
+            log_event = UserLogEvent(user.id, request.remote_addr, 'login success')
+            db.session.add(log_event)
+            db.session.commit()
             return res
         else:
             abort(404)
@@ -104,6 +107,9 @@ def logout():
     }
     session.pop('token')
     # UserLogEvent
+    log_event = UserLogEvent(session['user_id'], request.remote_addr, 'logout success')
+    db.session.add(log_event)
+    db.session.commit()
     ret['msg'] = '退出登录，清除token'
     return jsonify(ret)
 
@@ -349,3 +355,4 @@ def authorize_menu():
         ret['code'] = -1
         ret['msg'] = "%s" % e
     return jsonify(ret)
+

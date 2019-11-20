@@ -1,7 +1,7 @@
 # coding:utf-8
 from tp_app import db, lm
-from flask import session
-from flask_login import UserMixin
+# from flask import session
+# from flask_login import UserMixin
 from datetime import datetime
 from tp_app.common.security import encrypt_with_salt
 
