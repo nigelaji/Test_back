@@ -1,5 +1,7 @@
-Flask==1.1.1
-Flask-Login==0.4.1
-Flask-Mail==0.9.1
-Flask-SQLAlchemy==2.4.1
-redis==3.3.11
+Flask
+Flask-Login
+Flask-Mail
+Flask-SQLAlchemy
+flask-restful
+redis
+# elasticsearch==7.12.1

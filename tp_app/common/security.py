@@ -12,7 +12,7 @@ def encrypt_with_salt(password, salt=SALT):
     return m.hexdigest()
 
 
-def check_password(password, pwd_hashed):        # 检查密码
+def check_password(password, pwd_hashed):  # 检查密码
     return encrypt_with_salt(password) == pwd_hashed
 
 
@@ -24,4 +24,3 @@ if __name__ == '__main__':
     # 开始判断
     if encrypt_with_salt(pwd, SALT) == database_pwd:
         print("通过用户输入的密码进行加密再和数据库比较，然后验证成功")
-

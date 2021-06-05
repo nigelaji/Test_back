@@ -1,7 +1,7 @@
 # coding:utf-8
 from flask import jsonify, request, session, Response, abort, g
 from tp_app import db, app
-from . import user_blue
+from tp_app.views import user_blue
 from tp_app.models import User, Role, Menu, user_role, role_menu, UserLogEvent
 from tp_app.common.security import check_password
 from .auth import create_token, require_token, require_role_level
@@ -12,6 +12,9 @@ import traceback
 
 
 # 用户邮箱注册
+from tp_app.models.articleModels import Article
+
+
 @user_blue.route('/register', methods=['POST'])
 def register():
     ret = {
@@ -19,7 +22,7 @@ def register():
         'msg': '',
         'data': {}
     }
-    if request.method == 'POST':    # 邮箱注册
+    if request.method == 'POST':  # 邮箱注册
         email = request.json.get('email')
         password1 = request.json.get('password1')
         password2 = request.json.get('password2')
@@ -40,7 +43,7 @@ def register():
             ret['msg'] = "验证码错误！"
             return jsonify(ret)
         # 验证结束，创建用户基本信息
-        user_default_name = 'TEST'+str(time.time())[0:10]
+        user_default_name = 'TEST' + str(time.time())[0:10]
         user = User(username=user_default_name, password=password1, email=email)
         db.session.add(user)
         db.session.commit()
@@ -58,7 +61,7 @@ def login():
     }
     if request.method == 'POST':
         # print(request.values, request.json, request.args, request.form, request.data)
-        user_code = request.json.get('user_code')    # 请求中的json一定要是标准格式的，引号要双引号
+        user_code = request.json.get('user_code')  # 请求中的json一定要是标准格式的，引号要双引号
         password = request.json.get('password')
         # request.form.get('...')     # 是从form表单中获取值的方式
         # request.args.get('...')     # 是从url链接后获取值的方式，一般是get方法用的
@@ -77,11 +80,11 @@ def login():
             # login_user(user)    # 这个方法会给session中自动添加user_id,_fresh,_id三个键值
             # ret['data'] = user.serialize
             token = create_token(user)  # 创建token
-            session['user_id'] = user.id    # session中只能存储可序列化的值，包括二层、三层..
+            session['user_id'] = user.id  # session中只能存储可序列化的值，包括二层、三层..
             # session['current_user_role_id'] = [role.role_level for role in user.roles if role]
             session['current_user_role_id'] = min([role.role_level for role in user.roles if role])
             role_menu_serialize = Role.query.get(session['current_user_role_id']).serialize
-            session['token'] = token    # session中加token，后续请求中session中带token的才可以请求需要登录的url
+            session['token'] = token  # session中加token，后续请求中session中带token的才可以请求需要登录的url
             ret['data'] = user.serialize
             ret['data']['current_role_menus'] = role_menu_serialize
             res = Response(json.dumps(ret), mimetype='application/json')
@@ -98,7 +101,7 @@ def login():
 
 # 登出，GET
 @user_blue.route('/logout', methods=['POST'])
-@require_token     # 意思就是必须登录的用户才能请求的路由,系统自带的装饰器
+@require_token  # 意思就是必须登录的用户才能请求的路由,系统自带的装饰器
 def logout():
     ret = {
         'code': 200,
@@ -143,8 +146,8 @@ def update_password():
         new_password1 = request.json.get('new_password1')
         new_password2 = request.json.get('new_password2')
         user = User.query.filter_by(id=session['user_id']).first()
-        if check_password(old_password, user.password):     # 先检查老密码是否正确
-            if new_password1 == new_password2:              # 再检查两次新密码输入是否正确
+        if check_password(old_password, user.password):  # 先检查老密码是否正确
+            if new_password1 == new_password2:  # 再检查两次新密码输入是否正确
                 user.password = new_password1
                 db.session.add(user)
                 db.session.commit()
@@ -174,7 +177,7 @@ def user_roles_menus():
 @user_blue.route('/role/add', methods=['POST'])
 @require_role_level(1, 2)
 @require_token
-def add_role():     # 新增角色
+def add_role():  # 新增角色
     ret = {
         'code': 200,
         'msg': '',
@@ -195,7 +198,7 @@ def add_role():     # 新增角色
 @user_blue.route('/role/update', methods=['POST'])
 @require_role_level(1, 2)
 @require_token
-def update_role():      # 适用软删除和更新
+def update_role():  # 适用软删除和更新
     # 角色只能超级管理员更改
     ret = {
         'code': 200,
@@ -203,7 +206,7 @@ def update_role():      # 适用软删除和更新
         'data': {}
     }
     try:
-        role_id = request.json.pop('role_id')       # 前端请求的role_id
+        role_id = request.json.pop('role_id')  # 前端请求的role_id
         sess_role = Role.query.filter_by(id=session['current_user_role_id']).first()  # session中存储的role_id
         role = None
         if sess_role.role_level == 1:
@@ -231,7 +234,7 @@ def update_role():      # 适用软删除和更新
     return jsonify(ret)
 
 
-@user_blue.route('/role/list', methods=['GET','POST'])
+@user_blue.route('/role/list', methods=['GET', 'POST'])
 @require_role_level(1, 2)
 @require_token
 def role_list():
@@ -242,14 +245,16 @@ def role_list():
         if session['current_user_role_id'] == 1:
             pagination = Role.query.filter_by(status='1').paginate(pageSize, per_page=pageNum, error_out=False)
         else:
-            pagination = Role.query.filter_by(status='1', create_user_id=session['user_id']).paginate(pageSize, per_page=pageNum, error_out=False)
+            pagination = Role.query.filter_by(status='1', create_user_id=session['user_id']).paginate(pageSize,
+                                                                                                      per_page=pageNum,
+                                                                                                      error_out=False)
         roles = pagination.items
         res = []
         for role in roles:
             res.append(role.role_info)
         return jsonify(res)
     else:
-        abort(405)      # 405 客户端请求中的方法被禁止
+        abort(405)  # 405 客户端请求中的方法被禁止
 
 
 @user_blue.route('/role/authorize_user', methods=['POST'])  # 角色授权用户
@@ -273,7 +278,7 @@ def authorize_role():
 
 
 # ----------------菜单增删改查，菜单只有超级管理员可更改----------------------
-@user_blue.route('/menu/add', methods=['POST'])     # 建菜单目录和菜单
+@user_blue.route('/menu/add', methods=['POST'])  # 建菜单目录和菜单
 @require_role_level(1)
 @require_token
 def add_menu():
@@ -319,7 +324,7 @@ def update_menu():
     return jsonify(ret)
 
 
-@user_blue.route('/menu/list', methods=['GET'])     # 菜单列表
+@user_blue.route('/menu/list', methods=['GET'])  # 菜单列表
 @require_role_level(1)
 @require_token
 def menu_list():
@@ -356,3 +361,26 @@ def authorize_menu():
         ret['msg'] = "%s" % e
     return jsonify(ret)
 
+
+@user_blue.route('/article', methods=['GET'])  # 获取文章内容
+# @require_role_level(1)
+# @require_token
+def get_article():
+    ret = {
+        'code': 200,
+        'msg': '',
+        'data': {}
+    }
+    try:
+        article_id = request.args.get('id')
+        # article_id = request.json.get('id')
+        article = Article.query.filter_by(id=article_id).first()
+        ret['data'] = {
+            'title': article.title,
+            'content': article.content
+        }
+    except Exception as e:
+        traceback.print_exc()
+        ret['code'] = -1
+        ret['msg'] = "%s" % e
+    return jsonify(ret)

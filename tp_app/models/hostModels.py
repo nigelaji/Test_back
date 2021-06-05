@@ -2,6 +2,10 @@
 from tp_app import db
 from datetime import datetime
 
+__all__ = [
+    'Host', 'HostUser'
+]
+
 
 class Host(db.Model):
     """主机管理表"""
@@ -20,4 +24,3 @@ class HostUser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), comment='账户')
     password = db.Column(db.String(128), comment='密码')
-    

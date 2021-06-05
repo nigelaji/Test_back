@@ -1,5 +1,6 @@
 # coding:utf-8
 import redis
+
 _redis_cache = redis.Redis(connection_pool=redis.ConnectionPool(host='127.0.0.1', port=6379, db=1))
 _redis_db = redis.StrictRedis(host='127.0.0.1', port=6379, db=2)
 
@@ -24,11 +25,3 @@ class RedisDB:
 class RedisCache(RedisDB):
     def __init__(self):
         super().__init__(_redis_cache)
-
-
-
-
-
-
-
-
