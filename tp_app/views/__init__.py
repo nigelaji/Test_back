@@ -4,8 +4,8 @@ from flask import Blueprint
 user_blue = Blueprint('user', __name__)
 article_blue = Blueprint('article', __name__)
 
-from tp_app.views.user import views
-from tp_app.views.user import auth
+from tp_app.views.auth import views
+from tp_app.views.auth import auth
 
 import json
 from flask import make_response, jsonify, Response, session, request

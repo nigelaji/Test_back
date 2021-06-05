@@ -43,3 +43,5 @@ app.register_blueprint(user_blue, url_prefix='/user')
 app.register_blueprint(article_blue, url_prefix='/article')
 
 from tp_app import views  # 先有app才能导入views
+from tp_app.register_api import register_api
+register_api(api)
