@@ -1,6 +1,11 @@
-from tp_app.apis.article import ArticleListAPI, ArticleAPI
+from tp_app.apis.user import auth_resources
+
+resources = []
+resources.extend(auth_resources)
 
 
 def register_api(api):
-    api.add_resource(ArticleAPI, '/v1/article/<int:id>')
-    api.add_resource(ArticleListAPI, '/v1/article/list')
+    for resource in resources:
+        api.add_resource(resource['resource'], resource['urls'])
+
+    # api.add_resource(ArticleListAPI, '/v1/article/list')

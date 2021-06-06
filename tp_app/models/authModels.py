@@ -81,7 +81,7 @@ class User(db.Model):
         return "<User (username='%r', status='%r')>" % (self.username, self.status)
 
     @property
-    def person_info(self):
+    def user_info(self):
         return {
             'user_id': self.id,
             'username': self.username,
@@ -89,10 +89,10 @@ class User(db.Model):
             'email': self.email,
             'phone': self.phone,
             'create_time': dump_datetime(self.create_time),
-            # 'update_time': dump_datetime(self.update_time),
+            'update_time': dump_datetime(self.update_time),
             'locked': self.locked,
             'locked_time': dump_datetime(self.locked_time),
-            # 'unlocked_time': dump_datetime(self.unlocked_time),
+            'unlocked_time': dump_datetime(self.unlocked_time),
             'remark': self.remark,
         }
 
@@ -115,7 +115,6 @@ class User(db.Model):
             'remark': self.remark,
             'roles': [role.role_info for role in self.roles if role],
         }
-
 
 # @lm.user_loader
 # def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调用于从会话中存储的用户 ID 重新加载用户对象
