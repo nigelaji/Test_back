@@ -28,17 +28,34 @@ class Article(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('tp_user.id'))
     title = db.Column(db.String(100), comment="标题")
     content = db.Column(db.Text, comment="内容")
+    keywords = db.Column(db.String(100), comment="关键词")
     status = db.Column(db.CHAR(1), default=1, comment='软删除, 0已删除，1正常状态，默认值1')
     create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, index=True)  # index=True，查询用户列表时，加快速度
     hot = db.Column(db.Integer, comment="热度")
     comments = db.relationship('Comment', secondary=article_comment, backref=db.backref('article', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('article', lazy='dynamic'))
 
-    def __init__(self, title, content, status='1'):
+    def __init__(self, user_id, title, content, keywords, status='1'):
+        self.user_id = user_id
         self.title = title
         self.content = content
+        self.keywords = keywords
         self.status = status
         self.hot = random.randint(10, 100)
+
+    @property
+    def serialize(self):  #
+        if self.status == '0':
+            return {}
+        return {
+            'title': self.title,
+            'content': self.content,
+            'keywords': self.keywords,
+            'update_time': self.update_time,
+            'hot': self.hot,
+            'user': self.user.username
+        }
 
     @staticmethod
     def init_test_data():
@@ -46,7 +63,7 @@ class Article(db.Model):
         article = Article.query.filter_by(id=1).first()
         if not article:
             print('初始化测试数据文章表')
-            article = Article('文章标题', '文章内容')
+            article = Article('文章标题', '文章内容文章内容文章内容文章内容文章内容', '测试')
             user = User.query.filter_by(id=1).first()
             article.user_id = user.id
             db.session.add_all([article])
@@ -92,7 +109,7 @@ class Comment(db.Model):
 
     def __repr__(self):
         return "<Comment (id='%r', content='%r')>" % (
-        self.id, textwrap.shorten(self.content, width=30, placeholder="..."))
+            self.id, textwrap.shorten(self.content, width=30, placeholder="..."))
 
 
 def init_article_data():  # 对关联表进行数据初始化
