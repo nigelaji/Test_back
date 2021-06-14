@@ -82,10 +82,10 @@ class ArticleAPI(Resource):
 article_resources = [
     {
         'resource': ArticleListAPI,
-        'urls': '/v1/articles'
+        'urls': '/articles'
     },
     {
         'resource': ArticleAPI,
-        'urls': '/v1/articles/<int:id>'
+        'urls': '/articles/<int:id>'
     },
 ]

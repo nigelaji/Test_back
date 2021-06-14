@@ -1,9 +1,9 @@
 # coding:utf-8
-from tp_app import db, lm
+from tp_app import db, login
 # from flask import session
-# from flask_login import UserMixin
+from flask_login import UserMixin
 from datetime import datetime
-from tp_app.common.security import encrypt_with_salt
+from tp_app.utils.encrypts.hash import StdHash
 
 __all__ = [
     'User', 'user_role', 'Role', 'role_menu', 'Menu',
@@ -23,9 +23,16 @@ user_role = db.Table('tp_user_role',  # 用户角色关联表
                      # 必须是真实表名.id，当然也可以是类名前提是__tablename__不写
                      db.Column('role_id', db.Integer, db.ForeignKey('tp_role.id'))
                      )
+"""
+Flask-Login
+is_authenticated: 一个属性，表示True用户是否具有有效凭据或False其他。
+is_active：表示True用户帐户是否处于活动状态的属性False。
+is_anonymous：False适用于普通用户和True特殊匿名用户的属性。
+get_id()：一种以字符串形式返回用户唯一标识符的方法（unicode，如果使用 Python 2）。
+"""
 
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     """用户表"""
     __tablename__ = 'tp_user'
     id = db.Column(db.Integer, primary_key=True)
@@ -50,17 +57,19 @@ class User(db.Model):
 
     @password.setter
     def password(self, password):  # 插入明文密码时，自动加密
-        self.password_hashlib = encrypt_with_salt(password)
+        self.password_hashlib = StdHash.md5(password)
 
-    def __init__(self, username, password, email, user_code=None, phone=None, remark=None, status='1', locked='1'):
+    def __init__(self, username, password, email, user_code=None, phone=None, remark=None, **kwargs):
         self.username = username
         self.password = password
         self.email = email
         self.user_code = user_code
         self.phone = phone
         self.remark = remark
-        self.status = status
-        self.locked = locked
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        db.session.add(self)
+        db.session.commit()
 
     @staticmethod
     def init_admin():  # 初始化管理员用户
@@ -74,8 +83,8 @@ class User(db.Model):
             user4 = User(username='测试账户1', password='123456', email='test1@qq.com', user_code='test1')
             user5 = User(username='已删除账户', password='123456', email='test2@qq.com', user_code='test2', status='0')
             user6 = User(username='已锁定账户', password='123456', email='test3@qq.com', user_code='test3', locked='0')
-            db.session.add_all([user1, user2, user3, user4, user5, user6])
-            db.session.commit()
+            # db.session.add_all([user1, user2, user3, user4, user5, user6])
+            # db.session.commit()
 
     def __repr__(self):
         return "<User (username='%r', status='%r')>" % (self.username, self.status)
@@ -116,9 +125,17 @@ class User(db.Model):
             'roles': [role.role_info for role in self.roles if role],
         }
 
-# @lm.user_loader
-# def load_user(user_id): 		# 必须提供一个 user_loader 回调。这个回调用于从会话中存储的用户 ID 重新加载用户对象
-#     return User.query.get(int(user_id)) 		# id默认传入的是字符串所以要int下
+    @property
+    def user_roles(self):
+        return {
+            'user_id': self.id,
+            'roles': [role.role_info for role in self.roles if role],
+        }
+
+
+@login.user_loader
+def load_user(user_id):  # 这个回调函数用于通过 session 中存储的用户 ID 重新加载用户对象。
+    return User.query.get(int(user_id))
 
 
 role_menu = db.Table('tp_role_menu',  # 角色菜单关联表
@@ -167,6 +184,13 @@ class Role(db.Model):
             'role_level': self.role_level,
             'introduction': self.introduction,
             'create_user_id': self.create_user_id,
+            'menus': [menu.serialize for menu in self.menus if menu]
+        }
+
+    @property
+    def role_menus(self):
+        return {
+            'role_id': self.id,
             'menus': [menu.serialize for menu in self.menus if menu]
         }
 
@@ -270,10 +294,12 @@ class UserLogEvent(db.Model):
     log_event = db.Column(db.String(30), comment='事件代码，例：login、logout、login_fail等')
     log_time = db.Column(db.DateTime, default=datetime.now())
 
-    def __init__(self, user_id, client_ip, log_event):
+    def __init__(self, user_id: int, client_ip: str, log_event: str):
         self.user_id = user_id
         self.client_ip = client_ip
         self.log_event = log_event
+        db.session.add(self)
+        db.session.commit()
 
     def __repr__(self):
         return "<UserLogInOut (user_id='%r', log_event='%r', log_time='%r')> " % (

@@ -10,7 +10,7 @@ from tp_app.views.auth import auth
 import json
 from flask import make_response, jsonify, Response, session, request
 from tp_app import app, db
-from tp_app.common.utils import times_count
+from tp_app.decos import times_count
 from tp_app.handler.logger_handler import logger
 import time
 
@@ -90,13 +90,13 @@ def init_count():
 @app.route('/eventRcv', methods=['POST'])
 @times_count
 def eventRcv():
-    logger.info(request.json or '空')
+    # logger.info(request.json or '空')
     # http://10.9.82.15:5000/eventRcv # http://122.112.173.59:5000/eventRcv
     # print(request.remote_addr)
     # print(request.json.get('data').get('userId'))
     # if request.json.get('data').get('userId') == 125496:
     #     print(request.remote_addr, request.json)
-    # print(request.remote_addr, request.json)
+    print(request.remote_addr, request.json)
     return jsonify({
         "code": 200,
         "message": "success",

@@ -1,27 +1,32 @@
 # coding:utf-8
 import redis
-
-_redis_cache = redis.Redis(connection_pool=redis.ConnectionPool(host='127.0.0.1', port=6379, db=1))
-_redis_db = redis.StrictRedis(host='127.0.0.1', port=6379, db=2)
+from tp_app.config import REDIS_URL
+from tp_app.config import REDIS_EX
 
 
 class RedisDB:
-    def __init__(self, conn=_redis_db):
-        self.conn = conn
+    def __init__(self, redis_url=REDIS_URL, db: int = 0):
+        self.client = redis.Redis.from_url(redis_url + str(db))
+        self.pipe = self.client.pipeline()
 
-    def set(self, key, value, expire=None):
-        self.conn.set(key, value, expire)
+    @property
+    def status(self):
+        return self.client.ping()
 
-    def hget(self, name, key):
-        ret = self.conn.hget(name, key)
-        if ret:
-            ret = ret.decode('utf-8')
-        return ret
+    def session_set_user_info(self, token, user_info, ex=REDIS_EX):
+        return self.client.set(token, user_info, ex=ex)
 
-    def hset(self, name, key, value):
-        self.conn.hset(name, key, value)
+    def session_get_user_info(self, token):
+        return self.client.get(token)
+
+    def session_del_token(self, token):
+        return self.client.delete(token)
+
+    def execute_command(self, command):
+        return self.client.execute_command(command)
 
 
-class RedisCache(RedisDB):
-    def __init__(self):
-        super().__init__(_redis_cache)
+if __name__ == '__main__':
+    r = RedisDB()
+#     print(r.status)
+    print(r.execute_command('keys *'))

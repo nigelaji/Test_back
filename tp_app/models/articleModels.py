@@ -43,6 +43,8 @@ class Article(db.Model):
         self.keywords = keywords
         self.status = status
         self.hot = random.randint(10, 100)
+        db.session.add(self)
+        db.session.commit()
 
     @property
     def serialize(self):  #
@@ -63,11 +65,8 @@ class Article(db.Model):
         article = Article.query.filter_by(id=1).first()
         if not article:
             print('初始化测试数据文章表')
-            article = Article('文章标题', '文章内容文章内容文章内容文章内容文章内容', '测试')
             user = User.query.filter_by(id=1).first()
-            article.user_id = user.id
-            db.session.add_all([article])
-            db.session.commit()
+            Article(user.id, '文章标题', '文章内容文章内容文章内容文章内容文章内容文章内容文章内容文章内容文章内容文章内容', '测试')
 
     def __repr__(self):
         return "<Article (id='%r', title='%r')>" % (self.id, textwrap.shorten(self.title, width=20, placeholder="..."))
@@ -90,10 +89,15 @@ class Comment(db.Model):
     hot = db.Column(db.Integer, comment="点赞数")
     top_status = db.Column(db.CHAR(1), default=0, comment='0不置顶，1置顶')
 
-    def __init__(self, content, status='1'):
+    def __init__(self, user_id, content, status='1', **kwargs):
+        self.user_id = user_id
         self.content = content
         self.status = status
         self.hot = random.randint(10, 100)
+        for k,v in kwargs:
+            setattr(self, k, v)
+        db.session.add(self)
+        db.session.commit()
 
     @staticmethod
     def init_test_data():
@@ -101,11 +105,10 @@ class Comment(db.Model):
         comment = Comment.query.filter_by(id=1).first()
         if not comment:
             print('初始化测试数据评论表')
-            comment = Comment('评论内容')
-            user = User.query.filter_by(id=1).first()
-            comment.user_id = user.id
-            db.session.add_all([comment])
-            db.session.commit()
+            user1 = User.query.filter_by(id=1).first()
+            Comment(user1.id, '评论内容')
+            user2 = User.query.filter_by(id=2).first()
+            Comment(user2.id, "评论用户的评论")
 
     def __repr__(self):
         return "<Comment (id='%r', content='%r')>" % (

@@ -1,4 +1,4 @@
-# coding;utf-8
+# coding:utf-8
 import hashlib
 import functools
 from tp_app.config import SALT
@@ -12,8 +12,7 @@ def encrypt_with_salt(password, salt=SALT):
     return m.hexdigest()
 
 
-def check_password(password, pwd_hashed):  # 检查密码
-    return encrypt_with_salt(password) == pwd_hashed
+
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # coding:utf-8
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy # https://docs.sqlalchemy.org/en/14/core/expression_api.html
 from flask_login import LoginManager
 from flask_mail import Mail, Message
 from flask_restful import Api
@@ -18,9 +18,14 @@ app.config['MAIL_USERNAME'] = EMAIL_HOST_USER
 app.config['MAIL_PASSWORD'] = EMAIL_HOST_PASSWORD
 
 db = SQLAlchemy()
-lm = LoginManager()
+app.config['SQLALCHEMY_ECHO']=True  # 查看执行的sql语句输出
+# app.config['FLASKY_DB_QUERY_TIMEOUT'] = 0.0001  # 设置sql执行超时时间，#记录执行时间超过 0.0001秒的
+# app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True  # 断开设置
+# app.config['SQLALCHEMY_RECORD_QUERIES'] = True  # 启用慢查询记录功能
+
+login = LoginManager()
 db.init_app(app)
-lm.init_app(app)
+login.init_app(app) # 默认情况下，Flask-Login 使用 session 进行身份验证。
 mail = Mail(app)
 api = Api(app)
 
@@ -37,6 +42,7 @@ with app.app_context():
 # 注册蓝图
 from tp_app.views import user_blue
 from tp_app.views import article_blue
+from tp_app.restapis import restful_blue
 
 # 这个困扰我一天，套他猴子的我，不能写在创建db对象的上边，要不然蓝图中的db就会导入不了
 app.register_blueprint(user_blue, url_prefix='/user')
@@ -45,3 +51,4 @@ app.register_blueprint(article_blue, url_prefix='/article')
 from tp_app import views  # 先有app才能导入views
 from tp_app.register_api import register_api
 register_api(api)
+app.register_blueprint(restful_blue, url_prefix='/rest')

@@ -5,3 +5,9 @@ Flask-SQLAlchemy
 flask-restful
 redis
 # elasticsearch==7.12.1
+pycryptodome
+pydes
+aes
+
+
+

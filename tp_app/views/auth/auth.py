@@ -1,53 +1,47 @@
 # coding:utf-8
-from flask import session, Response
-from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from flask.app import session, Response, request
 from functools import wraps
-import json
+from tp_app.utils.encrypts.hash import StdHash
 from tp_app.config import SECRET_KEY
+from tp_app.common.redisdb import RedisDB
+from tp_app.handler.http_handler import self_abort
+import time
+import pickle
+import inspect
+import json
 
 
-def create_token(user, expire=600):  # 生成时效token，单位秒
-    s = Serializer(secret_key=SECRET_KEY, expires_in=expire)
-    token = s.dumps({'id': user.id})
-    return token
-
-
-def verify_token(token):  # token验证
-    s = Serializer(secret_key=SECRET_KEY)  # 参数为私有秘钥，跟上面方法的秘钥保持一致
+def token_to_redis(user):
     try:
-        data = s.loads(token)  # 转换为字典
-    except Exception:
+        timestamp = str(int(time.time()))
+        u_id = user.id
+        sha256 = StdHash.sha256(f"{u_id}#{timestamp}#{SECRET_KEY}")
+        token = f"{u_id}-{sha256}"
+        u_roles = pickle.dumps(user.user_roles)
+        r = RedisDB()
+        r.session_set_user_info(token, u_roles)
+    except Exception as e:
+        return False, e
+    return True, token
+
+
+def verify_token_from_redis(token):
+    r = RedisDB()
+    u_roles = r.session_get_user_info(token)
+    if u_roles is None:
         return None
-    # user = User.query.get(data["id"])       # 拿到转换后的数据，根据模型类去数据库查询用户信息
-    return data['id']  # 返回user_id
-
-
-def save_token_to_redis(user, expire=600):
-    return
-
-
-def verify_token_by_redis(token):
-    return
+    return pickle.loads(u_roles)
 
 
 def require_token(func):  # 给需要登录的路由装上，就可以控制url必须登录才能访问了。
     @wraps(func)  # functools的wrap，它能保留原有函数的名称和docstring。
     def check_token(*args, **kwargs):
-        # print('check_token ==>', session)
-        if not session.get('token'):
-            ret = {
-                'code': -1,
-                'msg': u'没有token，访问被拒绝！',
-            }
-            return Response(json.dumps(ret), status=401, mimetype='application/json')
-        else:
-            user = verify_token(session['token'])
-            if not user:
-                ret = {
-                    'code': -2,
-                    'msg': u'token失效，请重新登录！',
-                }
-                return Response(json.dumps(ret), mimetype='application/json')
+        token = request.headers.get('token')
+        if token is None:
+            self_abort(50001, '无权限访问')
+        u_roles = verify_token_from_redis(token)
+        if u_roles is None:
+            self_abort(50002, 'token失效')
         return func(*args, **kwargs)
 
     return check_token
@@ -70,3 +64,11 @@ def require_role_level(*role_level):  # 必须管理员角色等级验证
         return check_admin
 
     return require
+
+
+def token_for_members(cls):
+    """给类的成员函数都加上require_token装饰器
+    """
+    for name, m in inspect.getmembers(cls, lambda m:  inspect.isfunction(m)):
+        setattr(cls, name, require_token(m))
+    return cls

@@ -17,8 +17,15 @@ EMAIL_HOST_PASSWORD = 'ubzdpogpyhsgbajh'  # 请在这里填上您自己邮箱的
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 EMAIL_USE_SSL = True
 
+# redis配置，用于缓存token等其他临时存储
+REDIS_URL = "redis://:xm12138...@122.112.173.59:2020/"
+REDIS_EX = str(60*60*10)
+
 # 日志存储目录
 LOG_BASE_DIR = os.path.join(Path(__file__).resolve().parent.parent, 'logs')
 
 if __name__ == '__main__':
-    print(LOG_BASE_DIR)
+    # print(LOG_BASE_DIR)
+    import redis
+    client = redis.Redis.from_url(REDIS_URL)
+    print(client.ping())
