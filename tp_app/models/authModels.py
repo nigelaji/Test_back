@@ -1,5 +1,5 @@
 # coding:utf-8
-from tp_app import db, login
+from tp_app import db  # login
 # from flask import session
 from flask_login import UserMixin
 from datetime import datetime
@@ -133,9 +133,9 @@ class User(UserMixin, db.Model):
         }
 
 
-@login.user_loader
-def load_user(user_id):  # 这个回调函数用于通过 session 中存储的用户 ID 重新加载用户对象。
-    return User.query.get(int(user_id))
+# @login.user_loader
+# def load_user(user_id):  # 这个回调函数用于通过 session 中存储的用户 ID 重新加载用户对象。
+#     return User.query.get(int(user_id))
 
 
 role_menu = db.Table('tp_role_menu',  # 角色菜单关联表

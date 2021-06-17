@@ -1,8 +1,7 @@
 # coding:utf-8
-# from flask_restful import Resource
+from flask_restful import Resource
 # from flask_restful.reqparse import RequestParser
 from .libs.selfreqparser import SelfRequestParser
-from .libs.selfresource import SelfResource
 from tp_app.models.authModels import User, Role, Menu, UserLogEvent
 from tp_app import db
 import traceback
@@ -17,14 +16,24 @@ __all__ = [
 ]
 
 
-class UserListAPI(SelfResource):
+class UserListAPI(Resource):
 
     def get(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         users = User.query.all()
-        self.ret['data'] = [user.user_info for user in users]
-        return self.ret
+        ret['data'] = [user.user_info for user in users]
+        return ret
 
     def post(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('username', type=str, location='json')
         parse.add_argument('user_code', type=str, required=True, help='required', location='json')
@@ -37,28 +46,46 @@ class UserListAPI(SelfResource):
             user = User(**kwargs)
             db.session.add(user)
             db.session.commit()
-            self.ret['data'] = {
+            ret['data'] = {
                 "id": user.id
             }
-            self.ret['msg'] = '创建成功'
         except IntegrityError as ie:
-            self.ret['msg'] = str(ie.orig)
+            ret.update({
+                'code': 500,
+                'msg': str(ie.orig)
+            })
         except Exception:
-            self.ret['msg'] = traceback.format_exc()
-        return self.ret
+            ret.update({
+                'code': 500,
+                'msg': traceback.format_exc()
+            })
+        return ret
 
 
-class UserAPI(SelfResource):
+class UserAPI(Resource):
 
     def get(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         user = User.query.filter_by(id=id).first()
         if user:
-            self.ret['data'] = user.user_info
+            ret['data'] = user.user_info
         else:
-            self.ret['msg'] = '用户不存在'
-        return self.ret
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def put(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('username', type=str, location='json')
         parse.add_argument('user_code', type=str, location='json')
@@ -74,38 +101,68 @@ class UserAPI(SelfResource):
                 else:
                     exist = User.query.filter_by({k, v}).first()
                     if exist:
-                        self.ret['msg'] = f'{k}已被使用'
-                        return self.ret
+                        ret.update({
+                            'code': 405,
+                            'msg': f'{k}已被使用'
+                        })
+                        return ret
                 setattr(user, k, v)
             db.session.add(user)
             db.session.commit()
-            self.ret['msg'] = "修改成功"
         else:
-            self.ret['msg'] = '用户不存在'
-        return self.ret
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def delete(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         user = User.query.filter_by(id=id).first()
         if user:
             db.session.delete(user)
             db.session.commit()
-            self.ret['msg'] = '删除成功'
-        return self.ret
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
 
-class UserRoleAPI(SelfResource):
+class UserRoleAPI(Resource):
 
     def get(self):
         """获取账户的角色信息列表"""
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('id', type=str, required=True, help='required', location='args')
         kwargs = parse.parse_args()
         user = User.query.filter_by(id=kwargs['id']).first()
-        self.ret['data'] = user.user_roles
-        return self.ret
+        if user:
+            ret['data'] = user.user_roles
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def put(self):
         """用户绑定或解绑角色"""
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('user_id', type=str, required=True, help='required', location='json')
         parse.add_argument('role_ids', type=tuple, required=True, help='required', location='json')
@@ -117,17 +174,30 @@ class UserRoleAPI(SelfResource):
             db.session.add(user)
             db.session.commit()
         except Exception as e:
-            self.ret['msg'] = e
-        return self.ret
+            ret.update({
+                'code': 500,
+                'msg': traceback.format_exc()
+            })
+        return ret
 
 
-class RoleListAPI(SelfResource):
+class RoleListAPI(Resource):
     def get(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         roles = Role.query.all()
-        self.ret['data'] = [role.role_info for role in roles]
-        return self.ret
+        ret['data'] = [role.role_info for role in roles]
+        return ret
 
     def post(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('role_name', type=str, required=True, help='required', location='json')
         parse.add_argument('role_level', type=str, required=True, help='required', location='json')
@@ -137,22 +207,38 @@ class RoleListAPI(SelfResource):
             role = Role(**kwargs)
             db.session.add(role)
             db.session.commit()
-            self.ret['data'] = role.role_info
+            ret['data'] = role.role_info
         except Exception:
-            self.ret['msg'] = traceback.format_exc()
-        return self.ret
+            ret.update({
+                'code': 500,
+                'msg': traceback.format_exc()
+            })
+        return ret
 
 
-class RoleAPI(SelfResource):
+class RoleAPI(Resource):
     def get(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         role = Role.query.filter_by(id=id).first()
         if role:
-            self.ret['data'] = role.role_info
+            ret['data'] = role.role_info
         else:
-            self.ret['msg'] = '角色不存在'
-        return self.ret
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def put(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('role_name', type=str, location='json')
         parse.add_argument('role_level', type=str, location='json')
@@ -169,35 +255,63 @@ class RoleAPI(SelfResource):
                 setattr(role, k, v)
             db.session.add(role)
             db.session.commit()
-            self.ret['msg'] = "修改成功"
-        return self.ret
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def delete(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         role = Role.query.filter_by(id=id).first()
         if role:
             db.session.delete(role)
             db.session.commit()
-            self.ret['msg'] = '删除成功'
-        return self.ret
+        else:
+            ret.update({
+                'code': 404,
+                'msg': "资源不存在"
+            })
+        return ret
 
 
-class RoleMenuAPI(SelfResource):
+class RoleMenuAPI(Resource):
     def put(self):
         """单个角色绑定多个菜单"""
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('role_id', type=str, location='json')
         parse.add_argument('menus_ids', type=list, location='json')
         kwargs = parse.parse_args()
 
 
-class MenuListAPI(SelfResource):
+class MenuListAPI(Resource):
 
     def get(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         menus = Menu.query.all()
-        self.ret['data'] = [menu.menu_info for menu in menus]
-        return self.ret
+        ret['data'] = [menu.menu_info for menu in menus]
+        return ret
 
     def post(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('menu_name', type=str, required=True, help='required', location='json')
         parse.add_argument('menu_url', type=str, required=True, help='required', location='json')
@@ -208,22 +322,38 @@ class MenuListAPI(SelfResource):
             menu = Menu(**kwargs)
             db.session.add(menu)
             db.session.commit()
-            self.ret['data'] = menu.role_info
+            ret['data'] = menu.role_info
         except Exception:
-            self.ret['msg'] = traceback.format_exc()
-        return self.ret
+            ret.update({
+                'code': 500,
+                'msg': traceback.format_exc()
+            })
+        return ret
 
 
-class MenuAPI(SelfResource):
+class MenuAPI(Resource):
     def get(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         menu = Menu.query.filter_by(id=id).first()
         if menu:
-            self.ret['data'] = menu.menu_info
+            ret['data'] = menu.menu_info
         else:
-            self.ret['msg'] = '菜单不存在'
-        return self.ret
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def put(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         parse = SelfRequestParser()
         parse.add_argument('menu_name', type=str, location='json')
         parse.add_argument('menu_url', type=str, location='json')
@@ -238,33 +368,59 @@ class MenuAPI(SelfResource):
                 setattr(menu, k, v)
             db.session.add(menu)
             db.session.commit()
-            self.ret['msg'] = "修改成功"
-        return self.ret
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
     def delete(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         menu = Menu.query.filter_by(id=id).first()
         if menu:
             db.session.delete(menu)
             db.session.commit()
-            self.ret['msg'] = '删除成功'
-        return self.ret
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
 
-class UserLogEventListAPI(SelfResource):
+class UserLogEventListAPI(Resource):
     def get(self):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         log_events = UserLogEvent.query.all()
-        self.ret['data'] = [log_event.log_info for log_event in log_events]
-        return self.ret
+        ret['data'] = [log_event.log_info for log_event in log_events]
+        return ret
 
 
-class UserLogEventAPI(SelfResource):
+class UserLogEventAPI(Resource):
     def get(self, id):
+        ret = {
+            "code": 200,
+            "data": {},
+            "msg": "ok"
+        }
         log_event = UserLogEvent.query.filter_by(id=id).first()
         if log_event:
-            self.ret['data'] = log_event.log_info
+            ret['data'] = log_event.log_info
         else:
-            self.ret['msg'] = '事件不存在'
-        return self.ret
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
+        return ret
 
 
 auth_resources = [

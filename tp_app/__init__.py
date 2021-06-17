@@ -33,10 +33,12 @@ api = Api(app)
 with app.app_context():
     from tp_app.models.authModels import User, Role, Menu, user_role, role_menu, UserLogEvent, init_user_role_menu
     from tp_app.models.articleModels import Article, Comment, article_comment, init_article_data
+    from tp_app.models.hostModels import Host, init_host_data
 
     db.create_all()  # 创建所有表
     init_user_role_menu()
     init_article_data()
+    init_host_data()
 # from . import views  # 这里面可以放公共视图
 
 # 注册蓝图
@@ -51,4 +53,4 @@ app.register_blueprint(article_blue, url_prefix='/article')
 from tp_app import views  # 先有app才能导入views
 from tp_app.register_api import register_api
 register_api(api)
-app.register_blueprint(restful_blue, url_prefix='/rest')
+app.register_blueprint(restful_blue, url_prefix='/rest')    # url_prefix 目前这个没生效

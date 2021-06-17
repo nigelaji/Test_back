@@ -7,18 +7,27 @@ import traceback
 ret = {
     'code': 200,
     'data': {},
-    'msg': '',
-
+    'msg': 'ok',
 }
 
 
 class ArticleListAPI(Resource):
     def get(self):
+        ret = {
+            'code': 200,
+            'data': {},
+            'msg': 'ok',
+        }
         articles = Article.query.all()
         ret['data'] = [article.serialize for article in articles]
         return ret
 
     def post(self):
+        ret = {
+            'code': 200,
+            'data': {},
+            'msg': 'ok',
+        }
         parse = reqparse.RequestParser()
         parse.add_argument('title', type=str, required=True, help='required', location='json')
         parse.add_argument('content', type=str, required=True, help='required', location='json')
@@ -32,21 +41,36 @@ class ArticleListAPI(Resource):
             db.session.commit()
             ret['msg'] = '文章新增成功'
         except Exception:
-            ret['code'] = 500
-            ret['msg'] = traceback.format_exc()
+            ret.update({
+                'code': 500,
+                'msg': traceback.format_exc()
+            })
         return ret
 
 
 class ArticleAPI(Resource):
     def get(self, id):
+        ret = {
+            'code': 200,
+            'data': {},
+            'msg': 'ok',
+        }
         article = Article.query.filter_by(id=id).first()
         if article:
             ret['data'] = article.serialize
         else:
-            ret['msg'] = '用户不存在'
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
         return ret
 
     def put(self, id):
+        ret = {
+            'code': 200,
+            'data': {},
+            'msg': 'ok',
+        }
         parse = reqparse.RequestParser()
         parse.add_argument('title', type=str, required=True, help='required', location='json')
         parse.add_argument('content', type=str, required=True, help='required', location='json')
@@ -63,19 +87,33 @@ class ArticleAPI(Resource):
                     setattr(article, k, v)
                 db.session.add(article)
                 db.session.commit()
-                ret['msg'] = "修改成功"
             else:
-                ret['msg'] = '权限不允许'
+                ret.update({
+                    'code': 504,
+                    'msg': '权限不允许'
+                })
         else:
-            ret['msg'] = '文章不存在'
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
         return ret
 
     def delete(self, id):
+        ret = {
+            'code': 200,
+            'data': {},
+            'msg': 'ok',
+        }
         article = Article.query.filter_by(id=id).first()
         if article:
             db.session.delete(article)
             db.session.commit()
-            ret['msg'] = '删除成功'
+        else:
+            ret.update({
+                'code': 404,
+                'msg': '资源不存在'
+            })
         return ret
 
 
